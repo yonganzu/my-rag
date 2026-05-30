@@ -2,6 +2,17 @@
 
 从零实现的检索增强生成（Retrieval-Augmented Generation，RAG）系统，适合学习理解 RAG 的核心原理。
 
+## 更新日志
+
+### v0.2.0 (2026-05-30)
+- 增加了向量数据库持久化功能
+- VectorStore 新增 `save()` 和 `load()` 方法
+- RAGPipeline 会在构建知识库后自动保存到 `data/vector_db` 目录
+- 支持通过 `load_knowledge_base()` 加载已有知识库
+
+### v0.1.0 (2026-05-29)
+- 初始版本，包含完整的 RAG 链路实现
+
 ## 📚 项目简介
 
 本项目不使用任何现成的 RAG 框架（如 LangChain、LlamaIndex），而是从零手动实现了完整的 RAG 链路，帮助你理解：

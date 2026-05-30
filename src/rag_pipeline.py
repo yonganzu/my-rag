@@ -80,13 +80,19 @@ class RAGPipeline:
 
     使用方式：
       rag = RAGPipeline()
-      rag.build_knowledge_base(chunks)   # 第一步：建立知识库
+      rag.build_knowledge_base(chunks)   # 第一步：建立知识库（自动保存）
       answer = rag.answer("你的问题")     # 第二步：提问
+
+    持久化：
+      - 知识库会自动保存到 data/vector_db 目录
+      - 下次运行时可以直接加载：rag.load_knowledge_base()
     """
 
-    def __init__(self):
+    def __init__(self, db_path: str = "data/vector_db"):
+        from pathlib import Path
+        self.db_path = Path(db_path)
         self.vector_store = VectorStore()
-        self._ready = False  # 标记知识库是否已构建
+        self._ready = False
 
     def build_knowledge_base(self, chunks: List[str]) -> None:
         """
@@ -98,16 +104,23 @@ class RAGPipeline:
         """
         print(f"正在对 {len(chunks)} 个文档块生成向量嵌入...")
 
-        # 批量调用 embedding API
         vectors = embed_texts(
             texts=chunks,
             model=config.embedding_model,
         )
 
-        # 存入向量存储
         self.vector_store.add(chunks, vectors)
         self._ready = True
         print(f"知识库构建完成，共 {len(self.vector_store)} 个文档块")
+
+        self.vector_store.save(self.db_path)
+        print(f"知识库已保存到 {self.db_path}")
+
+    def load_knowledge_base(self) -> None:
+        """从磁盘加载已构建的知识库"""
+        self.vector_store.load(self.db_path)
+        self._ready = True
+        print(f"知识库已从 {self.db_path} 加载，共 {len(self.vector_store)} 个文档块")
 
     def retrieve(self, question: str) -> List[str]:
         """检索与问题最相关的文档块"""

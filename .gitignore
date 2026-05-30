@@ -53,3 +53,6 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Vector Database (generated at runtime)
+data/vector_db/

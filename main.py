@@ -14,45 +14,45 @@ RAG 示例程序入口
 from pathlib import Path
 
 from src.config import config
-from src.document_loader import load_and_chunk
+from src.document_loader import load_documents_from_folder
 from src.rag_pipeline import RAGPipeline
 
 
 def main():
-    # ── 1. 加载文档并分块 ──────────────────────────────────────
-    doc_path = config.data_dir / "sample_document.txt"
-    print(f"📄 加载文档: {doc_path}\n")
+    # -- 1. 加载文档并分块 --
+    docs_folder = config.data_dir / "documents"
+    print(f"[加载文档] 从文件夹: {docs_folder}\n")
 
-    chunks = load_and_chunk(
-        file_path=str(doc_path),
+    chunks = load_documents_from_folder(
+        folder_path=str(docs_folder),
         chunk_size=config.chunk_size,
         overlap=config.chunk_overlap,
     )
-    print(f"✅ 文档被分割为 {len(chunks)} 个文本块\n")
+    print(f"\n[OK] 共加载 {len(chunks)} 个文本块\n")
 
-    # ── 2. 构建知识库 ──────────────────────────────────────────
+    # -- 2. 构建知识库 --
     rag = RAGPipeline()
     rag.build_knowledge_base(chunks)
 
-    # ── 3. 交互式问答 ──────────────────────────────────────────
+    # -- 3. 交互式问答 --
     print("\n" + "=" * 60)
-    print("💡 RAG 问答系统已就绪！（输入 'exit' 退出）")
+    print("[RAG 问答系统已就绪！（输入 'exit' 退出）]")
     print("=" * 60)
 
     while True:
-        question = input("\n❓ 请输入问题: ").strip()
+        question = input("\n[请输入问题]: ").strip()
         if question.lower() in ("exit", "quit", "q"):
-            print("👋 再见！")
+            print("[再见！]")
             break
         if not question:
             continue
 
         try:
-            print("🔍 正在检索和生成回答...")
+            print("[正在检索和生成回答...]")
             answer = rag.answer(question)
-            print(f"\n🤖 回答:\n{answer}")
+            print(f"\n[回答]:\n{answer}")
         except Exception as e:
-            print(f"❌ 出错: {e}")
+            print(f"[ERROR]: {e}")
 
 
 if __name__ == "__main__":

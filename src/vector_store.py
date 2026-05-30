@@ -12,6 +12,7 @@
   - 比欧氏距离更适合文本语义匹配（关注方向而非幅度）
 """
 
+from pathlib import Path
 from typing import List, Tuple
 
 import numpy as np
@@ -95,3 +96,44 @@ class VectorStore:
     def __len__(self) -> int:
         """返回存储的文档块数量"""
         return len(self.chunks)
+
+    def save(self, dir_path: str | Path) -> None:
+        """
+        将向量数据库持久化到磁盘
+
+        保存位置：
+          - dir_path / vectors.npy    # numpy 格式的向量矩阵
+          - dir_path / chunks.json    # JSON 格式的文本块
+        """
+        import json
+
+        save_dir = Path(dir_path)
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        if self.vectors is None or len(self.chunks) == 0:
+            raise ValueError("向量存储为空，无法保存")
+
+        np.save(save_dir / "vectors.npy", self.vectors)
+        with open(save_dir / "chunks.json", "w", encoding="utf-8") as f:
+            json.dump(self.chunks, f, ensure_ascii=False, indent=2)
+
+    def load(self, dir_path: str | Path) -> None:
+        """
+        从磁盘加载向量数据库
+
+        加载位置：
+          - dir_path / vectors.npy    # 向量矩阵
+          - dir_path / chunks.json    # 文本块
+        """
+        import json
+
+        load_dir = Path(dir_path)
+        vectors_path = load_dir / "vectors.npy"
+        chunks_path = load_dir / "chunks.json"
+
+        if not vectors_path.exists() or not chunks_path.exists():
+            raise FileNotFoundError(f"向量数据库文件不存在: {load_dir}")
+
+        self.vectors = np.load(vectors_path)
+        with open(chunks_path, "r", encoding="utf-8") as f:
+            self.chunks = json.load(f)

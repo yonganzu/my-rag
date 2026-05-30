@@ -82,3 +82,34 @@ def load_and_chunk(file_path: str | Path, chunk_size: int = 500, overlap: int = 
     text = load_text(file_path)
     chunks = chunk_text(text, chunk_size, overlap)
     return chunks
+
+
+def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, overlap: int = 100) -> List[str]:
+    """
+    加载文件夹中的所有 txt 文档并分块
+
+    参数：
+      folder_path: 文件夹路径
+      chunk_size: 每块的最大字符数
+      overlap:    相邻块之间的重叠字符数
+
+    返回：
+      所有文档分块后的字符串列表
+    """
+    folder = Path(folder_path)
+    if not folder.exists() or not folder.is_dir():
+        raise FileNotFoundError(f"文档文件夹不存在: {folder}")
+
+    all_chunks: List[str] = []
+    txt_files = list(folder.glob("*.txt"))
+
+    if not txt_files:
+        raise FileNotFoundError(f"文件夹中没有找到 .txt 文件: {folder}")
+
+    for txt_file in txt_files:
+        print(f"  加载文档: {txt_file.name}")
+        chunks = load_and_chunk(txt_file, chunk_size, overlap)
+        all_chunks.extend(chunks)
+        print(f"    -> 分割为 {len(chunks)} 个文本块")
+
+    return all_chunks
