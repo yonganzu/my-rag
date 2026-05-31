@@ -9,6 +9,8 @@
 - VectorStore 新增 `save()` 和 `load()` 方法
 - RAGPipeline 会在构建知识库后自动保存到 `data/vector_db` 目录
 - 支持通过 `load_knowledge_base()` 加载已有知识库
+- 启动时自动检测本地向量数据库，避免重复调用 API
+- Embedding 分批处理，支持大批量文档（API 限制每批最多 10 条）
 - 回答时显示检索到的相关文档块（上下文来源）
 - 增加对多种文档格式的支持：Word (.docx)、Excel (.xlsx)、PowerPoint (.pptx)、PDF、HTML
 - 增加语义重排序（Rerank）功能，通过 LLM 对检索结果进行二次排序，提升相关性
@@ -74,7 +76,7 @@ learn/
 
 ### 3. embedding.py - 文本向量化
 
-将文本转换为向量（Embedding），使用阿里云 DashScope 的 `text-embedding-v2` 模型。
+将文本转换为向量（Embedding），使用阿里云 DashScope 的 `text-embedding-v4` 模型。
 
 **Embedding 的作用：**
 - 将非结构化文本转换为计算机可计算的向量

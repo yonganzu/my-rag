@@ -19,20 +19,29 @@ from src.rag_pipeline import RAGPipeline
 
 
 def main():
-    # -- 1. 加载文档并分块 --
-    docs_folder = config.data_dir / "documents"
-    print(f"[加载文档] 从文件夹: {docs_folder}\n")
-
-    chunks = load_documents_from_folder(
-        folder_path=str(docs_folder),
-        chunk_size=config.chunk_size,
-        overlap=config.chunk_overlap,
-    )
-    print(f"\n[OK] 共加载 {len(chunks)} 个文本块\n")
-
-    # -- 2. 构建知识库 --
+    # -- 1. 检查本地向量数据库 --
     rag = RAGPipeline()
-    rag.build_knowledge_base(chunks)
+    vector_db_path = rag.db_path
+    
+    if vector_db_path.exists() and any(vector_db_path.iterdir()):
+        print(f"[发现本地向量数据库] {vector_db_path}")
+        print("[直接加载已有知识库，跳过文档加载和向量化...]")
+        rag.load_knowledge_base()
+        chunks = None
+    else:
+        # -- 2. 加载文档并分块 --
+        docs_folder = config.data_dir / "documents"
+        print(f"[加载文档] 从文件夹: {docs_folder}\n")
+
+        chunks = load_documents_from_folder(
+            folder_path=str(docs_folder),
+            chunk_size=config.chunk_size,
+            overlap=config.chunk_overlap,
+        )
+        print(f"\n[OK] 共加载 {len(chunks)} 个文本块\n")
+
+        # -- 3. 构建知识库 --
+        rag.build_knowledge_base(chunks)
 
     # -- 3. 交互式问答 --
     use_rerank = config.use_rerank
