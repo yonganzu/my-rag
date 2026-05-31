@@ -1,6 +1,14 @@
 """
 文档加载与分块模块
 
+支持的文件格式：
+  - .txt: 纯文本文件
+  - .docx: Word文档
+  - .xlsx: Excel表格
+  - .pptx: PowerPoint演示文稿
+  - .pdf: PDF文档
+  - .html: HTML网页
+
 为什么需要分块（Chunking）？
   - LLM 有上下文窗口限制，不能把整本书塞进一个 prompt
   - 检索时，细粒度的块比整篇文档更容易匹配到用户问题
@@ -9,6 +17,7 @@
 工程要点：
   - 用 pathlib.Path 处理路径（跨平台，比 os.path 更现代）
   - 用 try/except 包裹 IO 操作，给用户清晰的错误信息
+  - 按需导入库，避免不必要的依赖加载
 """
 
 from pathlib import Path
@@ -20,8 +29,126 @@ def load_text(file_path: str | Path) -> str:
     path = Path(file_path)
     if not path.exists():
         raise FileNotFoundError(f"文档不存在: {path}")
-    # encoding='utf-8' 显式指定，避免 Windows 默认编码问题
     return path.read_text(encoding="utf-8")
+
+
+def load_docx(file_path: str | Path) -> str:
+    """读取 Word 文档 (.docx)"""
+    from docx import Document
+    
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"文档不存在: {path}")
+    
+    doc = Document(path)
+    content = []
+    for para in doc.paragraphs:
+        content.append(para.text)
+    return "\n".join(content)
+
+
+def load_xlsx(file_path: str | Path) -> str:
+    """读取 Excel 表格 (.xlsx)"""
+    from openpyxl import load_workbook
+    
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"文档不存在: {path}")
+    
+    wb = load_workbook(path, read_only=True)
+    content = []
+    
+    for sheet in wb.sheets:
+        content.append(f"=== 工作表: {sheet.title} ===")
+        for row in sheet.iter_rows(values_only=True):
+            row_text = "\t".join(str(cell) if cell else "" for cell in row)
+            if row_text.strip():
+                content.append(row_text)
+    
+    return "\n".join(content)
+
+
+def load_pptx(file_path: str | Path) -> str:
+    """读取 PowerPoint 演示文稿 (.pptx)"""
+    from pptx import Presentation
+    
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"文档不存在: {path}")
+    
+    prs = Presentation(path)
+    content = []
+    
+    for slide in prs.slides:
+        content.append("=== 幻灯片 ===")
+        for shape in slide.shapes:
+            if hasattr(shape, "text"):
+                content.append(shape.text)
+    
+    return "\n".join(content)
+
+
+def load_pdf(file_path: str | Path) -> str:
+    """读取 PDF 文档"""
+    from PyPDF2 import PdfReader
+    
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"文档不存在: {path}")
+    
+    reader = PdfReader(path)
+    content = []
+    for page in reader.pages:
+        text = page.extract_text()
+        if text:
+            content.append(text)
+    return "\n".join(content)
+
+
+def load_html(file_path: str | Path) -> str:
+    """读取 HTML 文件，提取纯文本内容"""
+    from bs4 import BeautifulSoup
+    
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"文档不存在: {path}")
+    
+    with open(path, "r", encoding="utf-8") as f:
+        soup = BeautifulSoup(f.read(), "html.parser")
+    
+    # 移除脚本和样式
+    for script in soup(["script", "style"]):
+        script.decompose()
+    
+    return soup.get_text(separator="\n", strip=True)
+
+
+def load_file(file_path: str | Path) -> str:
+    """
+    根据文件扩展名自动选择合适的加载方法
+    
+    参数：
+      file_path: 文件路径
+    
+    返回：
+      文件的文本内容
+    """
+    path = Path(file_path)
+    ext = path.suffix.lower()
+    
+    loaders = {
+        ".txt": load_text,
+        ".docx": load_docx,
+        ".xlsx": load_xlsx,
+        ".pptx": load_pptx,
+        ".pdf": load_pdf,
+        ".html": load_html,
+    }
+    
+    if ext not in loaders:
+        raise ValueError(f"不支持的文件格式: {ext}")
+    
+    return loaders[ext](path)
 
 
 def chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
@@ -43,50 +170,44 @@ def chunk_text(text: str, chunk_size: int, overlap: int) -> List[str]:
     text_len = len(text)
 
     while start < text_len:
-        # 计算当前块的结束位置
         end = start + chunk_size
 
-        # 最后一块直接取到末尾
         if end >= text_len:
             chunks.append(text[start:])
             break
 
-        # ── 优雅切分：尽量在句号/换行处断开，而不是生硬截断 ──
-        # 在当前块的最后 1/4 范围内寻找最后一个句子边界
         search_start = max(start + chunk_size * 3 // 4, start)
-        # 从右向左找句号、问号、感叹号、换行
         cut = -1
         for sep in ("。", "！", "？", "\n", ".", "!", "?"):
             pos = text.rfind(sep, search_start, end)
             if pos > cut:
                 cut = pos
 
-        # 如果找到了句子边界，在边界处断开（+1 保留标点）
         if cut > search_start:
             chunks.append(text[start: cut + 1])
             start = cut + 1 - overlap
         else:
-            # 找不到好边界就直接按长度切
             chunks.append(text[start:end])
             start = end - overlap
 
-    # 防止 overlap 导致 start 回退到负数
     if start < 0:
-        chunks[-1] = text  # 罕见情况：直接返回全文
+        chunks[-1] = text
 
     return chunks
 
 
 def load_and_chunk(file_path: str | Path, chunk_size: int = 500, overlap: int = 100) -> List[str]:
     """加载文档并分块的一站式函数"""
-    text = load_text(file_path)
+    text = load_file(file_path)
     chunks = chunk_text(text, chunk_size, overlap)
     return chunks
 
 
 def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, overlap: int = 100) -> List[str]:
     """
-    加载文件夹中的所有 txt 文档并分块
+    加载文件夹中的所有支持格式的文档并分块
+
+    支持的格式：.txt, .docx, .xlsx, .pptx, .pdf, .html
 
     参数：
       folder_path: 文件夹路径
@@ -101,15 +222,22 @@ def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, o
         raise FileNotFoundError(f"文档文件夹不存在: {folder}")
 
     all_chunks: List[str] = []
-    txt_files = list(folder.glob("*.txt"))
+    supported_extensions = ("*.txt", "*.docx", "*.xlsx", "*.pptx", "*.pdf", "*.html")
+    
+    all_files = []
+    for ext in supported_extensions:
+        all_files.extend(folder.glob(ext))
+    
+    if not all_files:
+        raise FileNotFoundError(f"文件夹中没有找到支持的文档格式: {folder}")
 
-    if not txt_files:
-        raise FileNotFoundError(f"文件夹中没有找到 .txt 文件: {folder}")
-
-    for txt_file in txt_files:
-        print(f"  加载文档: {txt_file.name}")
-        chunks = load_and_chunk(txt_file, chunk_size, overlap)
-        all_chunks.extend(chunks)
-        print(f"    -> 分割为 {len(chunks)} 个文本块")
+    for doc_file in all_files:
+        print(f"  加载文档: {doc_file.name}")
+        try:
+            chunks = load_and_chunk(doc_file, chunk_size, overlap)
+            all_chunks.extend(chunks)
+            print(f"    -> 分割为 {len(chunks)} 个文本块")
+        except Exception as e:
+            print(f"    -> 加载失败: {e}")
 
     return all_chunks

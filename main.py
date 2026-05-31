@@ -35,8 +35,15 @@ def main():
     rag.build_knowledge_base(chunks)
 
     # -- 3. 交互式问答 --
+    use_rerank = config.use_rerank
+    use_query_rewrite = config.use_query_rewrite
+
     print("\n" + "=" * 60)
     print("[RAG 问答系统已就绪！（输入 'exit' 退出）]")
+    if use_rerank:
+        print("[已启用语义重排序，检索结果将通过 LLM 重新排序]")
+    if use_query_rewrite:
+        print("[已启用 Query 改写，用户问题将通过 LLM 优化]")
     print("=" * 60)
 
     while True:
@@ -49,8 +56,20 @@ def main():
 
         try:
             print("[正在检索和生成回答...]")
-            answer = rag.answer(question)
-            print(f"\n[回答]:\n{answer}")
+            answer, contexts = rag.answer(question, use_rerank=use_rerank, use_query_rewrite=use_query_rewrite)
+            
+            # 显示检索到的上下文
+            print("\n" + "-" * 60)
+            print("[检索到的相关文档]:")
+            print("-" * 60)
+            for i, ctx in enumerate(contexts, 1):
+                print(f"\n[{i}] {ctx[:200]}..." if len(ctx) > 200 else f"\n[{i}] {ctx}")
+            
+            # 显示回答
+            print("\n" + "=" * 60)
+            print("[回答]:")
+            print("=" * 60)
+            print(answer)
         except Exception as e:
             print(f"[ERROR]: {e}")
 

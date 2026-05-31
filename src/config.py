@@ -37,7 +37,7 @@ class Config:
     )
 
     # ── Embedding 配置 ─────────────────────────────────────────
-    embedding_model: str = os.environ.get("EMBEDDING_MODEL", "text-embedding-v2")
+    embedding_model: str = os.environ.get("EMBEDDING_MODEL", "text-embedding-v4")
 
     # ── 文本分块配置 ────────────────────────────────────────────
     # chunk_size: 每块字符数（不是 token 数，但足够了演示）
@@ -47,6 +47,9 @@ class Config:
 
     # ── 检索配置 ────────────────────────────────────────────────
     top_k: int = 3  # 检索时返回最相似的 top-k 个块
+    use_rerank: bool = True  # 是否使用语义重排序
+    rerank_factor: int = 3    # rerank 时先获取的候选数量倍数
+    use_query_rewrite: bool = True  # 是否使用 Query 改写
 
     # ── 路径 ────────────────────────────────────────────────────
     # Path() 跨平台路径处理，比字符串拼接更健壮

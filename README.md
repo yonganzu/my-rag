@@ -4,11 +4,15 @@
 
 ## 更新日志
 
-### v0.2.0 (2026-05-30)
+### v0.2.0 (2026-05-31)
 - 增加了向量数据库持久化功能
 - VectorStore 新增 `save()` 和 `load()` 方法
 - RAGPipeline 会在构建知识库后自动保存到 `data/vector_db` 目录
 - 支持通过 `load_knowledge_base()` 加载已有知识库
+- 回答时显示检索到的相关文档块（上下文来源）
+- 增加对多种文档格式的支持：Word (.docx)、Excel (.xlsx)、PowerPoint (.pptx)、PDF、HTML
+- 增加语义重排序（Rerank）功能，通过 LLM 对检索结果进行二次排序，提升相关性
+- 增加 Query 改写功能，通过 LLM 优化用户查询，提升检索召回率
 
 ### v0.1.0 (2026-05-29)
 - 初始版本，包含完整的 RAG 链路实现

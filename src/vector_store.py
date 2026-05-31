@@ -64,19 +64,23 @@ class VectorStore:
             self.vectors = np.vstack([self.vectors, vectors])
         self.chunks.extend(chunks)
 
-    def search(self, query_vector: np.ndarray, top_k: int = 3) -> List[Tuple[str, float]]:
+    def search(self, query_vector: np.ndarray, top_k: int = 3, fetch_k: int = None) -> List[Tuple[str, float]]:
         """
-        检索与查询向量最相似的 top_k 个文档块
+        检索与查询向量最相似的文档块
 
         参数：
           query_vector: 查询向量，形状 (1, dim)
           top_k: 返回前 k 个结果
+          fetch_k: 先获取 fetch_k 个候选（用于 rerank），默认为 top_k
 
         返回：
           [(chunk_text, score), ...]，按相似度从高到低排序
         """
         if self.vectors is None or len(self.chunks) == 0:
             return []
+
+        if fetch_k is None:
+            fetch_k = top_k
 
         # ── 计算相似度 ──────────────────────────────────────────
         query_vector = query_vector.reshape(1, -1)  # 确保形状正确
@@ -85,13 +89,14 @@ class VectorStore:
         # ── 取 top-k ────────────────────────────────────────────
         # squeeze() 去掉单维度，argsort() 返回排序索引
         # [::-1] 反转变成从大到小
-        top_indices = scores.squeeze().argsort()[::-1][:top_k]
+        fetch_k = min(fetch_k, len(self.chunks))
+        top_indices = scores.squeeze().argsort()[::-1][:fetch_k]
 
         results = []
         for idx in top_indices:
             results.append((self.chunks[idx], float(scores.squeeze()[idx])))
 
-        return results
+        return results[:top_k]
 
     def __len__(self) -> int:
         """返回存储的文档块数量"""

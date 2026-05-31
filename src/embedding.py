@@ -27,6 +27,7 @@ def embed_texts(
     texts: List[str],
     model: str = "text-embedding-v2",
     api_key: Optional[str] = None,
+    batch_size: int = 10,
 ) -> np.ndarray:
     """
     将文本列表批量转换为向量
@@ -35,6 +36,7 @@ def embed_texts(
       texts:  要转换的文本列表
       model:  embedding 模型名
       api_key: DashScope API Key（默认从环境变量读取）
+      batch_size: 每批处理的文本数量（API 限制最大 10）
 
     返回：
       numpy array，形状为 (len(texts), embedding_dim)
@@ -42,34 +44,39 @@ def embed_texts(
     if not texts:
         raise ValueError("输入文本列表不能为空")
 
-    # ── 调用 DashScope Embedding API ───────────────────────────
-    # TextEmbedding.call 是 dashscope SDK 提供的同步接口
-    # batch_size 控制在一次请求中发送多少文本
-    resp = TextEmbedding.call(
-        model=model,
-        input=texts,
-        api_key=api_key,
-        batch_size=25,  # 每批最多 25 条，超过会自动分批
-    )
-
-    # ── 错误处理 ──────────────────────────────────────────────
-    # API 返回状态码，非 200 表示失败
-    if resp.status_code != 200:
-        raise RuntimeError(
-            f"Embedding API 调用失败: [{resp.status_code}] {resp.message}"
+    # DashScope API 限制每批最多 10 条
+    batch_size = min(batch_size, 10)
+    
+    all_embeddings = []
+    total_batches = (len(texts) + batch_size - 1) // batch_size
+    
+    print(f"正在生成向量嵌入 (共 {len(texts)} 条，分 {total_batches} 批处理)...")
+    
+    for i in range(0, len(texts), batch_size):
+        batch_texts = texts[i:i + batch_size]
+        batch_num = i // batch_size + 1
+        
+        resp = TextEmbedding.call(
+            model=model,
+            input=batch_texts,
+            api_key=api_key,
         )
-
-    # ── 提取向量 ──────────────────────────────────────────────
-    # resp.output["embeddings"] 是列表，每个元素包含 embedding 值
-    # 按原始顺序组装成 numpy 矩阵
-    embeddings = [
-        item["embedding"]
-        for item in resp.output["embeddings"]
-    ]
-
-    # np.array() 将 Python 列表转为 numpy 数组
-    # 这是后续向量计算的基础数据结构
-    return np.array(embeddings, dtype=np.float32)
+        
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"Embedding API 调用失败: [{resp.status_code}] {resp.message}"
+            )
+        
+        embeddings = [
+            item["embedding"]
+            for item in resp.output["embeddings"]
+        ]
+        all_embeddings.extend(embeddings)
+        
+        if batch_num % 10 == 0 or batch_num == total_batches:
+            print(f"  已处理 {batch_num}/{total_batches} 批")
+    
+    return np.array(all_embeddings, dtype=np.float32)
 
 
 def embed_text(

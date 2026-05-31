@@ -1,0 +1,32 @@
+{
+  "tasks": [
+    {
+      "id": "1780196403387",
+      "title": "显示返回的chunk",
+      "category": "TODO",
+      "dueDate": null,
+      "completed": false
+    },
+    {
+      "id": "1780196414511",
+      "title": "rerank",
+      "category": "TODO",
+      "dueDate": null,
+      "completed": false
+    },
+    {
+      "id": "1780196465919",
+      "title": "增加对word pdf的读取",
+      "category": "TODO",
+      "dueDate": null,
+      "completed": false
+    },
+    {
+      "id": "1780196537380",
+      "title": "query改写",
+      "category": "TODO",
+      "dueDate": null,
+      "completed": false
+    }
+  ]
+}
