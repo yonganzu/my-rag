@@ -56,3 +56,9 @@ Thumbs.db
 
 # Vector Database (generated at runtime)
 data/vector_db/
+
+# Todo files
+.todo
+
+# PDF files (uncomment if you don't want to track PDFs)
+# *.pdf
