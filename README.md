@@ -4,6 +4,16 @@
 
 ## 更新日志
 
+### v0.3.0 (2026-05-31)
+- ChatGPT 风格 Web 前端界面 (`app.py`)：左侧文档列表 + 右侧对话区域
+- 文档更新检测功能：启动时对比文件元数据，自动识别新增/修改的文档
+- 增量向量化：仅对变更文档重新向量化，大幅节省 API 调用量
+- 文档列表实时展示：左侧栏显示已入库文档名和文件大小
+- 向量库元数据持久化：新增 `metadata.json` 记录文档修改时间和大小
+- `document_loader` 返回文档元数据，支持指定文件列表加载
+- 修复 Embedding 模型默认值：`text-embedding-async-v1` → `text-embedding-v2`
+- 前端功能：上传文档、清空知识库、清空对话
+
 ### v0.2.0 (2026-05-31)
 - 增加了向量数据库持久化功能
 - VectorStore 新增 `save()` 和 `load()` 方法
@@ -31,6 +41,7 @@
 ## 🛠️ 技术栈
 
 - **Python 3.13+**
+- **Gradio 6**（Web 前端界面）
 - **阿里云 DashScope API**（用于 Embedding 和 LLM）
 - **NumPy**（用于向量计算）
 - **jieba**（中文分词）
@@ -44,10 +55,14 @@ learn/
 ├── README.md
 ├── requirements.txt
 ├── pyproject.toml
-├── run.bat              # Windows 启动脚本
-├── main.py              # 程序入口
+├── run.bat              # Windows 命令行启动
+├── run_app.bat          # Windows Web 界面启动
+├── main.py              # 命令行入口
+├── app.py               # Web 前端入口 (Gradio)
 ├── data/
-│   └── sample_document.txt  # 示例文档
+│   ├── documents/       # 文档存放目录
+│   │   └── sample_document.txt
+│   └── vector_db/       # 向量库持久化目录（运行时生成）
 └── src/
     ├── __init__.py
     ├── config.py        # 配置管理
@@ -138,6 +153,16 @@ EMBEDDING_MODEL=text-embedding-v2
 
 ### 3. 运行项目
 
+**Web 界面（推荐）：**
+
+```bash
+python app.py
+```
+
+然后在浏览器中访问 `http://localhost:7860`，即可使用 ChatGPT 风格的前端界面。
+
+**命令行模式：**
+
 ```bash
 python main.py
 ```
@@ -207,9 +232,9 @@ Transformer 是 Google 在 2017 年提出的几乎所有现代大语言模型的
 
 1. **更换向量数据库**：用 FAISS、Chroma 或 Milvus 替换当前的内存存储
 2. **添加重排序（Reranker）**：在检索后使用更好的模型对结果重新排序
-3. **支持多模态**：添加图片、PDF、视频的处理
-4. **Web UI**：用 Gradio 或 Streamlit 做一个 Web 界面
-5. **持久化**：保存向量索引到磁盘，下次启动无需重新构建
+3. **支持多模态**：添加图片、视频的处理
+4. **Docker 部署**：封装为 Docker 镜像便于分发
+5. **添加用户管理**：多用户支持和对话历史保存
 
 ## 📄 许可证
 
