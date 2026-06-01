@@ -203,7 +203,7 @@ def load_and_chunk(file_path: str | Path, chunk_size: int = 500, overlap: int = 
     return chunks
 
 
-def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, overlap: int = 100, specific_files: List[str] = None) -> tuple[List[str], dict]:
+def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, overlap: int = 100, specific_files: List[str] = None) -> tuple[List[str], dict, List[str]]:
     """
     加载文件夹中的所有支持格式的文档并分块
 
@@ -216,13 +216,14 @@ def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, o
       specific_files: 可选，指定要加载的文件列表（用于增量更新）
 
     返回：
-      (all_chunks, doc_metadata) - 所有文档分块后的字符串列表和文档元数据
+      (all_chunks, doc_metadata, chunk_sources) - 文档块列表、文档元数据、每个块的来源文件名
     """
     folder = Path(folder_path)
     if not folder.exists() or not folder.is_dir():
         raise FileNotFoundError(f"文档文件夹不存在: {folder}")
 
     all_chunks: List[str] = []
+    chunk_sources: List[str] = []
     doc_metadata: dict = {}
     supported_extensions = ("*.txt", "*.docx", "*.xlsx", "*.pptx", "*.pdf", "*.html")
     
@@ -243,6 +244,7 @@ def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, o
         try:
             chunks = load_and_chunk(doc_file, chunk_size, overlap)
             all_chunks.extend(chunks)
+            chunk_sources.extend([doc_file.name] * len(chunks))
             # 记录文档元数据
             doc_metadata[doc_file.name] = {
                 "mtime": doc_file.stat().st_mtime,
@@ -252,4 +254,4 @@ def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, o
         except Exception as e:
             print(f"    -> 加载失败: {e}")
 
-    return all_chunks, doc_metadata
+    return all_chunks, doc_metadata, chunk_sources

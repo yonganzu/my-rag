@@ -7,12 +7,7 @@ RAG（Retrieval-Augmented Generation）流水线
      │
      ▼
   ┌─────────────┐
-  │  Embedding   │  将问题转为向量
-  └──────┬──────┘
-         │
-         ▼
-  ┌─────────────┐
-  │  向量检索    │  在知识库中找到最相关的文档块
+  │  Retrieval   │  Query 改写 → Embedding → 混合检索 → Rerank
   └──────┬──────┘
          │
          ▼
@@ -25,15 +20,11 @@ RAG（Retrieval-Augmented Generation）流水线
   │  LLM 生成   │  调用通义千问生成最终回答
   └─────────────┘
 
-为什么要用 RAG 而不是直接问 LLM？
-  - LLM 的知识有截止日期，不知道最新信息
-  - LLM 不知道你的私有文档/数据库里的内容
-  - RAG 让 LLM "先读资料再回答"，减少幻觉（hallucination）
-
-为什么叫 "流水线"（Pipeline）？
-  - 数据像流水线一样依次经过每个处理阶段
-  - 每个阶段职责单一、可独立测试和替换
-  - 工程中常见的模式（如数据管道 ETL Pipeline）
+模块分工：
+  - retrieval.py  →  检索逻辑（向量/BM25/混合/改写/重排序）
+  - embedding.py  →  文本向量化
+  - vector_store.py → 向量存储与索引
+  - 本文件        →  流水线编排 + Prompt 构建 + 生成
 """
 
 from typing import List, Optional, Tuple
@@ -42,28 +33,39 @@ from pathlib import Path
 from dashscope import Generation
 
 from src.config import config
-from src.embedding import embed_texts, embed_text
+from src.embedding import embed_texts
 from src.vector_store import VectorStore
+from src.retrieval import Retriever
 
 
-def build_rag_prompt(question: str, contexts: List[str]) -> str:
-    """
-    构建 RAG 提示词
+def build_rag_prompt(
+    question: str,
+    contexts: List[str],
+    sources: List[str] = None,
+    show_citations: bool = False,
+) -> str:
+    """构建 RAG 提示词"""
+    if show_citations and sources:
+        context_parts = []
+        for ctx, src in zip(contexts, sources):
+            context_parts.append(f"[来源: {src}]\n{ctx}")
+        context_text = "\n---\n".join(context_parts)
 
-    结构：
-      1. 系统指令：告诉 LLM 如何行为
-      2. 上下文：检索到的相关文档
-      3. 用户问题
+        prompt = f"""你是一个基于知识库的问答助手。请根据以下上下文内容回答用户的问题。
 
-    为什么这样设计 prompt？
-      - 先给上下文再给问题，LLM 更容易聚焦
-      - 明确告诉 LLM "不知道就说不知道"，减少幻觉
-      - 引用来源增加了回答的可信度（生产环境可加 citation）
-    """
-    # 用分隔线清晰地区分不同文档块
-    context_text = "\n---\n".join(contexts)
+上下文：
+{context_text}
 
-    prompt = f"""你是一个基于知识库的问答助手。请根据以下上下文内容回答用户的问题。
+请基于以上上下文回答问题。如果上下文中没有足够信息，请如实说"根据提供的资料无法回答这个问题"，不要编造。
+
+请在回答中引用信息来源。如果你的观点参考了上下文中的特定内容，请注明"【参考：文件名】"。
+
+用户问题：{question}
+"""
+    else:
+        context_text = "\n---\n".join(contexts)
+
+        prompt = f"""你是一个基于知识库的问答助手。请根据以下上下文内容回答用户的问题。
 
 上下文：
 {context_text}
@@ -75,97 +77,38 @@ def build_rag_prompt(question: str, contexts: List[str]) -> str:
     return prompt
 
 
-def build_rerank_prompt(question: str, contexts: List[str]) -> str:
-    """
-    构建 Rerank 提示词，用于对检索结果进行重排序
-
-    Rerank 的作用：
-      - 向量检索可能返回字面相似但语义不相关的结果
-      - LLM 可以理解深层语义，进行更精准的排序
-    """
-    context_list = "\n".join([f"{i+1}. {ctx}" for i, ctx in enumerate(contexts)])
-    
-    prompt = f"""请对以下文档片段按照与用户问题的相关性进行排序。
-
-用户问题：{question}
-
-文档片段列表：
-{context_list}
-
-请按照相关性从高到低输出序号，用英文逗号分隔，不要输出其他内容。例如：3,1,2
-"""
-    return prompt
-
-
-def build_query_rewrite_prompt(question: str) -> str:
-    """
-    构建 Query 改写提示词
-
-    Query 改写的作用：
-      - 将模糊/简短的问题改写为更清晰、更完整的表达
-      - 补充隐含的上下文信息
-      - 生成多个相关查询词，提升检索召回率
-    """
-    prompt = f"""请帮我优化以下用户问题，使其更适合文档检索。
-
-用户问题：{question}
-
-请提供：
-1. 改写后的完整问题（更清晰、更具体）
-2. 相关关键词列表
-
-输出格式：
-改写问题：[改写后的问题]
-关键词：[关键词1, 关键词2, 关键词3]
-"""
-    return prompt
-
-
 class RAGPipeline:
     """
-    RAG 流水线，管理知识库构建和问答的全流程
+    RAG 流水线：负责知识库管理和问答编排
 
-    使用方式：
-      rag = RAGPipeline()
-      rag.build_knowledge_base(chunks)   # 第一步：建立知识库（自动保存）
-      answer = rag.answer("你的问题")     # 第二步：提问
-
-    持久化：
-      - 知识库会自动保存到 data/vector_db 目录
-      - 下次运行时可以直接加载：rag.load_knowledge_base()
-    
-    文档更新检测：
-      - 自动检测文档是否有更新（新增、修改、删除）
-      - 支持增量更新，只对新增/修改的文档重新向量化
+    检索逻辑已拆分到 retrieval.Retriever，本类专注于：
+      - 知识库的构建 / 加载 / 增量更新 / 变更检测
+      - Prompt 构建与 LLM 生成
+      - 将检索 + 生成串联为 complete 的问答流程
     """
 
     def __init__(self, db_path: str = "data/vector_db"):
-        from pathlib import Path
         self.db_path = Path(db_path)
         self.vector_store = VectorStore()
+        self.retriever = Retriever(self.vector_store)
         self._ready = False
-        self._doc_metadata = None  # 存储文档元数据（文件名 -> 修改时间）
+        self._doc_metadata = None
 
-    def build_knowledge_base(self, chunks: List[str], doc_metadata: dict = None) -> None:
-        """
-        构建知识库：将文档块全部转成向量并存入向量存储
+    # ═════════════════════════════════════════════════════════════
+    # 知识库管理
+    # ═════════════════════════════════════════════════════════════
 
-        为什么不逐条 embed？
-          - batch embedding 比逐条调用快 10 倍以上
-          - dashscope SDK 内部会并发请求
-        
-        参数：
-          chunks: 文档块列表
-          doc_metadata: 文档元数据（文件名 -> 修改时间），用于后续更新检测
-        """
+    def build_knowledge_base(
+        self,
+        chunks: List[str],
+        doc_metadata: dict = None,
+        chunk_sources: List[str] = None,
+    ) -> None:
         print(f"正在对 {len(chunks)} 个文档块生成向量嵌入...")
 
-        vectors = embed_texts(
-            texts=chunks,
-            model=config.embedding_model,
-        )
+        vectors = embed_texts(texts=chunks, model=config.embedding_model)
 
-        self.vector_store.add(chunks, vectors)
+        self.vector_store.add(chunks, vectors, chunk_sources)
         self._ready = True
         self._doc_metadata = doc_metadata
         print(f"知识库构建完成，共 {len(self.vector_store)} 个文档块")
@@ -174,12 +117,6 @@ class RAGPipeline:
         print(f"知识库已保存到 {self.db_path}")
 
     def load_knowledge_base(self) -> bool:
-        """
-        从磁盘加载已构建的知识库
-        
-        返回：
-          是否成功加载（如果文件不存在返回 False）
-        """
         try:
             self._doc_metadata = self.vector_store.load(self.db_path)
             self._ready = True
@@ -189,58 +126,35 @@ class RAGPipeline:
             print(f"向量数据库文件不存在: {self.db_path}")
             return False
 
-    def check_documents_update(self, docs_folder: str | Path) -> tuple[bool, list[str], list[str]]:
-        """
-        检查文档文件夹中的文档是否有更新
-
-        参数：
-          docs_folder: 文档文件夹路径
-        
-        返回：
-          (has_update, new_files, modified_files)
-          - has_update: 是否有更新
-          - new_files: 新增的文件列表
-          - modified_files: 修改的文件列表
-        """
-        from pathlib import Path
-        
+    def check_documents_update(
+        self, docs_folder: str | Path
+    ) -> tuple[bool, list[str], list[str]]:
         docs_folder = Path(docs_folder)
         current_metadata = {}
-        
-        # 收集当前文档的元数据
         for file in docs_folder.rglob("*"):
             if file.is_file():
-                # 使用文件修改时间作为标识
                 current_metadata[file.name] = {
                     "mtime": file.stat().st_mtime,
-                    "size": file.stat().st_size
+                    "size": file.stat().st_size,
                 }
-        
-        # 如果没有历史元数据，说明是首次构建
+
         if self._doc_metadata is None:
-            print(f"[检测到] 首次构建知识库，共 {len(current_metadata)} 个文件")
             return True, list(current_metadata.keys()), []
-        
-        # 比较新旧元数据
+
         old_files = set(self._doc_metadata.keys())
         current_files = set(current_metadata.keys())
-        
-        # 新增的文件
         new_files = list(current_files - old_files)
-        
-        # 删除的文件
         deleted_files = list(old_files - current_files)
-        
-        # 修改的文件
+
         modified_files = []
         for file_name in old_files & current_files:
             old_info = self._doc_metadata.get(file_name, {})
-            current_info = current_metadata[file_name]
-            if old_info.get("mtime") != current_info["mtime"] or old_info.get("size") != current_info["size"]:
+            cur_info = current_metadata[file_name]
+            if old_info.get("mtime") != cur_info["mtime"] or old_info.get("size") != cur_info["size"]:
                 modified_files.append(file_name)
-        
+
         has_update = len(new_files) > 0 or len(deleted_files) > 0 or len(modified_files) > 0
-        
+
         if has_update:
             if new_files:
                 print(f"[检测到] 新增文件: {', '.join(new_files)}")
@@ -248,98 +162,44 @@ class RAGPipeline:
                 print(f"[检测到] 删除文件: {', '.join(deleted_files)}")
             if modified_files:
                 print(f"[检测到] 修改文件: {', '.join(modified_files)}")
-        
+
         return has_update, new_files, modified_files
 
-    def add_documents(self, chunks: List[str], doc_metadata: dict = None) -> None:
-        """
-        增量添加文档块到知识库
-        
-        参数：
-          chunks: 新增的文档块列表
-          doc_metadata: 新增文档的元数据
-        """
+    def add_documents(
+        self,
+        chunks: List[str],
+        doc_metadata: dict = None,
+        chunk_sources: List[str] = None,
+    ) -> None:
         if len(chunks) == 0:
             print("[增量更新] 没有新增文档块")
             return
-        
+
         print(f"[增量更新] 正在对 {len(chunks)} 个新文档块生成向量嵌入...")
-        
-        vectors = embed_texts(
-            texts=chunks,
-            model=config.embedding_model,
-        )
-        
-        self.vector_store.add(chunks, vectors)
-        
-        # 更新元数据
+
+        vectors = embed_texts(texts=chunks, model=config.embedding_model)
+        self.vector_store.add(chunks, vectors, chunk_sources)
+
         if doc_metadata is not None and self._doc_metadata is not None:
             self._doc_metadata.update(doc_metadata)
-        
+
         print(f"[增量更新] 已添加 {len(chunks)} 个文档块，知识库共 {len(self.vector_store)} 个文档块")
-        
-        # 保存更新后的知识库
         self.vector_store.save(self.db_path, self._doc_metadata)
         print(f"[增量更新] 知识库已保存到 {self.db_path}")
 
-    def retrieve(self, question: str, use_rerank: bool = False, use_query_rewrite: bool = False) -> List[str]:
-        """
-        检索与问题最相关的文档块
-        
-        参数：
-          question: 用户问题
-          use_rerank: 是否使用 LLM 进行重排序
-          use_query_rewrite: 是否使用 Query 改写
-        
-        返回：
-          排序后的上下文列表
-        """
-        if not self._ready:
-            raise RuntimeError("知识库尚未构建，请先调用 build_knowledge_base()")
+    # ═════════════════════════════════════════════════════════════
+    # 生成
+    # ═════════════════════════════════════════════════════════════
 
-        # Query 改写
-        original_question = question
-        if use_query_rewrite:
-            question = self.rewrite_query(question)
-            print(f"[Query 改写] {original_question} -> {question}")
+    def generate(
+        self,
+        question: str,
+        contexts: List[str],
+        sources: List[str] = None,
+        show_citations: bool = False,
+    ) -> str:
+        prompt = build_rag_prompt(question, contexts, sources, show_citations)
 
-        # 将问题转为向量
-        query_vector = embed_text(
-            text=question,
-            model=config.embedding_model,
-        )
-
-        # 在向量存储中检索
-        # 如果使用 rerank，先获取更多候选
-        fetch_k = config.top_k * config.rerank_factor if use_rerank else config.top_k
-        results = self.vector_store.search(query_vector, top_k=fetch_k)
-
-        # 只返回文本内容，丢弃分数
-        contexts = [chunk for chunk, score in results]
-
-        print(f"检索到 {len(contexts)} 个候选文档块")
-
-        # 使用 LLM 进行重排序
-        if use_rerank and len(contexts) > 1:
-            contexts = self.rerank(original_question if use_query_rewrite else question, contexts)
-
-        # 最终只返回 top_k 个
-        return contexts[:config.top_k]
-
-    def rewrite_query(self, question: str) -> str:
-        """
-        使用 LLM 对用户查询进行改写
-        
-        参数：
-          question: 原始用户问题
-        
-        返回：
-          改写后的问题
-        """
-        print("[正在进行 Query 改写...]")
-        
-        prompt = build_query_rewrite_prompt(question)
-        
         resp = Generation.call(
             model=config.llm_model,
             messages=[{"role": "user", "content": prompt}],
@@ -348,104 +208,21 @@ class RAGPipeline:
         )
 
         if resp.status_code != 200:
-            print(f"Query 改写 API 调用失败，使用原始问题: {resp.message}")
-            return question
-
-        try:
-            result = resp.output.choices[0].message.content.strip()
-            
-            # 解析改写后的问题
-            lines = result.split("\n")
-            rewritten_question = question
-            
-            for line in lines:
-                if line.startswith("改写问题：") or line.startswith("改写问题:"):
-                    rewritten_question = line.split("：")[1].strip() if "：" in line else line.split(":")[1].strip()
-                    break
-            
-            print(f"[OK] Query 改写完成")
-            return rewritten_question
-        except Exception as e:
-            print(f"解析改写结果失败，使用原始问题: {e}")
-            return question
-
-    def rerank(self, question: str, contexts: List[str]) -> List[str]:
-        """
-        使用 LLM 对检索结果进行重排序
-        
-        参数：
-          question: 用户问题
-          contexts: 待排序的上下文列表
-        
-        返回：
-          重排序后的上下文列表
-        """
-        print("[正在进行语义重排序...]")
-        
-        prompt = build_rerank_prompt(question, contexts)
-        
-        resp = Generation.call(
-            model=config.llm_model,
-            messages=[{"role": "user", "content": prompt}],
-            api_key=config.dashscope_api_key,
-            result_format="message",
-        )
-
-        if resp.status_code != 200:
-            print(f"Rerank API 调用失败，使用原始排序: {resp.message}")
-            return contexts
-
-        try:
-            # 解析排序结果
-            result = resp.output.choices[0].message.content.strip()
-            ranks = [int(x.strip()) - 1 for x in result.split(",")]
-            
-            # 验证排序结果
-            if len(ranks) != len(contexts) or set(ranks) != set(range(len(contexts))):
-                raise ValueError("排序结果无效")
-            
-            # 重新排序
-            reranked_contexts = [contexts[i] for i in ranks]
-            print("[OK] 语义重排序完成")
-            return reranked_contexts
-        except Exception as e:
-            print(f"解析排序结果失败，使用原始排序: {e}")
-            return contexts
-
-    def generate(self, question: str, contexts: List[str]) -> str:
-        """根据问题和上下文生成回答"""
-        prompt = build_rag_prompt(question, contexts)
-
-        # ── 调用 DashScope Generation API ──────────────────────
-        # 兼容 OpenAI 格式，也可以用 OpenAI SDK 调用
-        resp = Generation.call(
-            model=config.llm_model,
-            messages=[{"role": "user", "content": prompt}],
-            api_key=config.dashscope_api_key,
-            result_format="message",  # 返回结构化消息格式
-        )
-
-        if resp.status_code != 200:
-            raise RuntimeError(
-                f"LLM API 调用失败: [{resp.status_code}] {resp.message}"
-            )
+            raise RuntimeError(f"LLM API 调用失败: [{resp.status_code}] {resp.message}")
 
         return resp.output.choices[0].message.content
 
-    def answer(self, question: str, use_rerank: bool = False, use_query_rewrite: bool = False) -> tuple[str, list[str]]:
-        """
-        一站式问答：[Query 改写] → 检索 → [重排序] → 生成
-
-        这就是 RAG 最核心的 "检索增强生成" 模式
-        
-        参数：
-          question: 用户问题
-          use_rerank: 是否使用语义重排序
-          use_query_rewrite: 是否使用 Query 改写
-        
-        返回：
-          (answer, contexts) - 回答内容和检索到的上下文列表
-        """
-        contexts = self.retrieve(question, use_rerank=use_rerank, use_query_rewrite=use_query_rewrite)
-        answer = self.generate(question, contexts)
+    def answer(
+        self,
+        question: str,
+        use_rerank: bool = False,
+        use_query_rewrite: bool = False,
+        show_citations: bool = False,
+    ) -> tuple[str, list[str]]:
+        contexts, sources = self.retriever.retrieve(
+            question,
+            use_rerank=use_rerank,
+            use_query_rewrite=use_query_rewrite,
+        )
+        answer = self.generate(question, contexts, sources, show_citations)
         return answer, contexts

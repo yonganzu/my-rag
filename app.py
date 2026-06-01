@@ -146,14 +146,14 @@ def load_kb():
 
         if has_update:
             updated_files = new_files + modified_files
-            chunks, doc_metadata = load_documents_from_folder(
+            chunks, doc_metadata, chunk_sources = load_documents_from_folder(
                 folder_path=str(upload_folder),
                 chunk_size=config.chunk_size,
                 overlap=config.chunk_overlap,
                 specific_files=updated_files,
             )
             if chunks:
-                rag.add_documents(chunks, doc_metadata)
+                rag.add_documents(chunks, doc_metadata, chunk_sources)
 
         knowledge_base_loaded = True
     else:
@@ -180,21 +180,21 @@ def process_upload(files):
             uploaded_names.append(file.name)
 
     if knowledge_base_loaded and rag is not None:
-        chunks, doc_metadata = load_documents_from_folder(
+        chunks, doc_metadata, chunk_sources = load_documents_from_folder(
             folder_path=str(upload_folder),
             chunk_size=config.chunk_size,
             overlap=config.chunk_overlap,
             specific_files=uploaded_names,
         )
-        rag.add_documents(chunks, doc_metadata)
+        rag.add_documents(chunks, doc_metadata, chunk_sources)
         msg = f"✅ 已添加: {', '.join(uploaded_names)}"
     else:
-        chunks, doc_metadata = load_documents_from_folder(
+        chunks, doc_metadata, chunk_sources = load_documents_from_folder(
             folder_path=str(upload_folder),
             chunk_size=config.chunk_size,
             overlap=config.chunk_overlap,
         )
-        rag.build_knowledge_base(chunks, doc_metadata)
+        rag.build_knowledge_base(chunks, doc_metadata, chunk_sources)
         knowledge_base_loaded = True
         msg = f"✅ 知识库已构建 ({len(chunks)} 个文本块)"
 
@@ -212,6 +212,7 @@ def chat(message, history):
             message,
             use_rerank=config.use_rerank,
             use_query_rewrite=config.use_query_rewrite,
+            show_citations=config.show_citations,
         )
         history.append({"role": "user", "content": message})
         history.append({"role": "assistant", "content": answer})
@@ -235,7 +236,9 @@ def delete_all_docs():
                 f.unlink()
     if rag is not None and rag.vector_store is not None:
         rag.vector_store.chunks = []
+        rag.vector_store.sources = []
         rag.vector_store.vectors = None
+        rag.vector_store.bm25 = type(rag.vector_store.bm25)()
         rag._doc_metadata = None
         rag._ready = False
     knowledge_base_loaded = False

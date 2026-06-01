@@ -51,6 +51,11 @@ class Config:
     rerank_factor: int = 3    # rerank 时先获取的候选数量倍数
     use_query_rewrite: bool = True  # 是否使用 Query 改写
     show_retrieved_chunks: bool = True  # 是否在回答时显示检索到的文档块
+    show_citations: bool = True  # 是否在回答中附上引用来源
+
+    # ── BM25 + 向量混合检索配置 ─────────────────────────────────
+    use_bm25: bool = True  # 是否启用 BM25 关键词检索
+    bm25_weight: float = 0.5  # BM25 权重 (0~1)，0=纯向量检索，1=纯BM25，0.5=等权重
 
     # ── 路径 ────────────────────────────────────────────────────
     # Path() 跨平台路径处理，比字符串拼接更健壮

@@ -42,7 +42,7 @@ def main():
             updated_files = new_files + modified_files
             
             # 加载更新的文档
-            chunks, doc_metadata = load_documents_from_folder(
+            chunks, doc_metadata, chunk_sources = load_documents_from_folder(
                 folder_path=str(docs_folder),
                 chunk_size=config.chunk_size,
                 overlap=config.chunk_overlap,
@@ -50,7 +50,7 @@ def main():
             )
             
             if chunks:
-                rag.add_documents(chunks, doc_metadata)
+                rag.add_documents(chunks, doc_metadata, chunk_sources)
             else:
                 print("[增量更新] 没有成功加载任何新文档")
         else:
@@ -61,7 +61,7 @@ def main():
         # -- 4. 首次构建：加载文档并分块 --
         print(f"[首次构建知识库] 从文件夹加载文档: {docs_folder}\n")
 
-        chunks, doc_metadata = load_documents_from_folder(
+        chunks, doc_metadata, chunk_sources = load_documents_from_folder(
             folder_path=str(docs_folder),
             chunk_size=config.chunk_size,
             overlap=config.chunk_overlap,
@@ -69,12 +69,13 @@ def main():
         print(f"\n[OK] 共加载 {len(chunks)} 个文本块\n")
 
         # -- 5. 构建知识库 --
-        rag.build_knowledge_base(chunks, doc_metadata)
+        rag.build_knowledge_base(chunks, doc_metadata, chunk_sources)
 
     # -- 3. 交互式问答 --
     use_rerank = config.use_rerank
     use_query_rewrite = config.use_query_rewrite
     show_chunks = config.show_retrieved_chunks
+    show_citations = config.show_citations
 
     print("\n" + "=" * 60)
     print("[RAG 问答系统已就绪！（输入 'exit' 退出）]")
@@ -84,6 +85,10 @@ def main():
         print("[已启用 Query 改写，用户问题将通过 LLM 优化]")
     if show_chunks:
         print("[将显示检索到的文档块]")
+    if show_citations:
+        print("[已启用引用来源，回答中会标注信息来源]")
+    if config.use_bm25:
+        print(f"[已启用 BM25+向量混合检索 (BM25 权重: {config.bm25_weight})]")
     print("=" * 60)
 
     while True:
@@ -96,7 +101,12 @@ def main():
 
         try:
             print("[正在检索和生成回答...]")
-            answer, contexts = rag.answer(question, use_rerank=use_rerank, use_query_rewrite=use_query_rewrite)
+            answer, contexts = rag.answer(
+                question,
+                use_rerank=use_rerank,
+                use_query_rewrite=use_query_rewrite,
+                show_citations=show_citations,
+            )
 
             if config.show_retrieved_chunks:
                 print("\n" + "-" * 60)
