@@ -102,13 +102,14 @@ class VectorStore:
         """返回存储的文档块数量"""
         return len(self.chunks)
 
-    def save(self, dir_path: str | Path) -> None:
+    def save(self, dir_path: str | Path, doc_metadata: dict = None) -> None:
         """
         将向量数据库持久化到磁盘
 
         保存位置：
-          - dir_path / vectors.npy    # numpy 格式的向量矩阵
-          - dir_path / chunks.json    # JSON 格式的文本块
+          - dir_path / vectors.npy       # numpy 格式的向量矩阵
+          - dir_path / chunks.json       # JSON 格式的文本块
+          - dir_path / metadata.json     # 文档元数据（用于检测更新）
         """
         import json
 
@@ -121,20 +122,30 @@ class VectorStore:
         np.save(save_dir / "vectors.npy", self.vectors)
         with open(save_dir / "chunks.json", "w", encoding="utf-8") as f:
             json.dump(self.chunks, f, ensure_ascii=False, indent=2)
+        
+        # 保存文档元数据
+        if doc_metadata is not None:
+            with open(save_dir / "metadata.json", "w", encoding="utf-8") as f:
+                json.dump(doc_metadata, f, ensure_ascii=False, indent=2)
 
-    def load(self, dir_path: str | Path) -> None:
+    def load(self, dir_path: str | Path) -> dict | None:
         """
         从磁盘加载向量数据库
 
         加载位置：
-          - dir_path / vectors.npy    # 向量矩阵
-          - dir_path / chunks.json    # 文本块
+          - dir_path / vectors.npy       # 向量矩阵
+          - dir_path / chunks.json       # 文本块
+          - dir_path / metadata.json     # 文档元数据（如果存在）
+
+        返回：
+          文档元数据字典（如果存在），否则返回 None
         """
         import json
 
         load_dir = Path(dir_path)
         vectors_path = load_dir / "vectors.npy"
         chunks_path = load_dir / "chunks.json"
+        metadata_path = load_dir / "metadata.json"
 
         if not vectors_path.exists() or not chunks_path.exists():
             raise FileNotFoundError(f"向量数据库文件不存在: {load_dir}")
@@ -142,3 +153,9 @@ class VectorStore:
         self.vectors = np.load(vectors_path)
         with open(chunks_path, "r", encoding="utf-8") as f:
             self.chunks = json.load(f)
+        
+        # 加载元数据（如果存在）
+        if metadata_path.exists():
+            with open(metadata_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return None

@@ -57,6 +57,13 @@ Thumbs.db
 # Vector Database (generated at runtime)
 data/vector_db/
 
+# User uploaded documents (generated at runtime)
+data/documents/*
+!data/documents/sample_document.txt
+
+# Gradio temporary files
+.gradio/
+
 # Todo files
 .todo
 

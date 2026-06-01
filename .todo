@@ -3,27 +3,41 @@
     {
       "id": "1780196403387",
       "title": "显示返回的chunk",
-      "category": "TODO",
+      "category": "Completed",
       "dueDate": null,
-      "completed": false
+      "completed": true
     },
     {
       "id": "1780196414511",
       "title": "rerank",
-      "category": "TODO",
+      "category": "Completed",
       "dueDate": null,
-      "completed": false
+      "completed": true
     },
     {
       "id": "1780196465919",
       "title": "增加对word pdf的读取",
+      "category": "Completed",
+      "dueDate": null,
+      "completed": true
+    },
+    {
+      "id": "1780196537380",
+      "title": "query改写",
+      "category": "Completed",
+      "dueDate": null,
+      "completed": true
+    },
+    {
+      "id": "1780202642041",
+      "title": "做个前端，可以让用户从界面导入文档作为语料",
       "category": "TODO",
       "dueDate": null,
       "completed": false
     },
     {
-      "id": "1780196537380",
-      "title": "query改写",
+      "id": "1780226678246",
+      "title": "显示chunk来自于哪个原始文档和多少页",
       "category": "TODO",
       "dueDate": null,
       "completed": false

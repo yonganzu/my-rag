@@ -36,7 +36,8 @@ RAG（Retrieval-Augmented Generation）流水线
   - 工程中常见的模式（如数据管道 ETL Pipeline）
 """
 
-from typing import List, Optional
+from typing import List, Optional, Tuple
+from pathlib import Path
 
 from dashscope import Generation
 
@@ -132,6 +133,10 @@ class RAGPipeline:
     持久化：
       - 知识库会自动保存到 data/vector_db 目录
       - 下次运行时可以直接加载：rag.load_knowledge_base()
+    
+    文档更新检测：
+      - 自动检测文档是否有更新（新增、修改、删除）
+      - 支持增量更新，只对新增/修改的文档重新向量化
     """
 
     def __init__(self, db_path: str = "data/vector_db"):
@@ -139,14 +144,19 @@ class RAGPipeline:
         self.db_path = Path(db_path)
         self.vector_store = VectorStore()
         self._ready = False
+        self._doc_metadata = None  # 存储文档元数据（文件名 -> 修改时间）
 
-    def build_knowledge_base(self, chunks: List[str]) -> None:
+    def build_knowledge_base(self, chunks: List[str], doc_metadata: dict = None) -> None:
         """
         构建知识库：将文档块全部转成向量并存入向量存储
 
         为什么不逐条 embed？
           - batch embedding 比逐条调用快 10 倍以上
           - dashscope SDK 内部会并发请求
+        
+        参数：
+          chunks: 文档块列表
+          doc_metadata: 文档元数据（文件名 -> 修改时间），用于后续更新检测
         """
         print(f"正在对 {len(chunks)} 个文档块生成向量嵌入...")
 
@@ -157,16 +167,120 @@ class RAGPipeline:
 
         self.vector_store.add(chunks, vectors)
         self._ready = True
+        self._doc_metadata = doc_metadata
         print(f"知识库构建完成，共 {len(self.vector_store)} 个文档块")
 
-        self.vector_store.save(self.db_path)
+        self.vector_store.save(self.db_path, doc_metadata)
         print(f"知识库已保存到 {self.db_path}")
 
-    def load_knowledge_base(self) -> None:
-        """从磁盘加载已构建的知识库"""
-        self.vector_store.load(self.db_path)
-        self._ready = True
-        print(f"知识库已从 {self.db_path} 加载，共 {len(self.vector_store)} 个文档块")
+    def load_knowledge_base(self) -> bool:
+        """
+        从磁盘加载已构建的知识库
+        
+        返回：
+          是否成功加载（如果文件不存在返回 False）
+        """
+        try:
+            self._doc_metadata = self.vector_store.load(self.db_path)
+            self._ready = True
+            print(f"知识库已从 {self.db_path} 加载，共 {len(self.vector_store)} 个文档块")
+            return True
+        except FileNotFoundError:
+            print(f"向量数据库文件不存在: {self.db_path}")
+            return False
+
+    def check_documents_update(self, docs_folder: str | Path) -> tuple[bool, list[str], list[str]]:
+        """
+        检查文档文件夹中的文档是否有更新
+
+        参数：
+          docs_folder: 文档文件夹路径
+        
+        返回：
+          (has_update, new_files, modified_files)
+          - has_update: 是否有更新
+          - new_files: 新增的文件列表
+          - modified_files: 修改的文件列表
+        """
+        from pathlib import Path
+        
+        docs_folder = Path(docs_folder)
+        current_metadata = {}
+        
+        # 收集当前文档的元数据
+        for file in docs_folder.rglob("*"):
+            if file.is_file():
+                # 使用文件修改时间作为标识
+                current_metadata[file.name] = {
+                    "mtime": file.stat().st_mtime,
+                    "size": file.stat().st_size
+                }
+        
+        # 如果没有历史元数据，说明是首次构建
+        if self._doc_metadata is None:
+            print(f"[检测到] 首次构建知识库，共 {len(current_metadata)} 个文件")
+            return True, list(current_metadata.keys()), []
+        
+        # 比较新旧元数据
+        old_files = set(self._doc_metadata.keys())
+        current_files = set(current_metadata.keys())
+        
+        # 新增的文件
+        new_files = list(current_files - old_files)
+        
+        # 删除的文件
+        deleted_files = list(old_files - current_files)
+        
+        # 修改的文件
+        modified_files = []
+        for file_name in old_files & current_files:
+            old_info = self._doc_metadata.get(file_name, {})
+            current_info = current_metadata[file_name]
+            if old_info.get("mtime") != current_info["mtime"] or old_info.get("size") != current_info["size"]:
+                modified_files.append(file_name)
+        
+        has_update = len(new_files) > 0 or len(deleted_files) > 0 or len(modified_files) > 0
+        
+        if has_update:
+            if new_files:
+                print(f"[检测到] 新增文件: {', '.join(new_files)}")
+            if deleted_files:
+                print(f"[检测到] 删除文件: {', '.join(deleted_files)}")
+            if modified_files:
+                print(f"[检测到] 修改文件: {', '.join(modified_files)}")
+        
+        return has_update, new_files, modified_files
+
+    def add_documents(self, chunks: List[str], doc_metadata: dict = None) -> None:
+        """
+        增量添加文档块到知识库
+        
+        参数：
+          chunks: 新增的文档块列表
+          doc_metadata: 新增文档的元数据
+        """
+        if len(chunks) == 0:
+            print("[增量更新] 没有新增文档块")
+            return
+        
+        print(f"[增量更新] 正在对 {len(chunks)} 个新文档块生成向量嵌入...")
+        
+        vectors = embed_texts(
+            texts=chunks,
+            model=config.embedding_model,
+        )
+        
+        self.vector_store.add(chunks, vectors)
+        
+        # 更新元数据
+        if doc_metadata is not None and self._doc_metadata is not None:
+            self._doc_metadata.update(doc_metadata)
+        
+        print(f"[增量更新] 已添加 {len(chunks)} 个文档块，知识库共 {len(self.vector_store)} 个文档块")
+        
+        # 保存更新后的知识库
+        self.vector_store.save(self.db_path, self._doc_metadata)
+        print(f"[增量更新] 知识库已保存到 {self.db_path}")
 
     def retrieve(self, question: str, use_rerank: bool = False, use_query_rewrite: bool = False) -> List[str]:
         """
