@@ -1,0 +1,6 @@
+{
+  "total_samples": 12,
+  "valid_samples": 12,
+  "retrieval_recall": 1.0,
+  "mrr_at_3": 1.0,
+  "answer_similarity": 

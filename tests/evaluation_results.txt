@@ -1,0 +1,469 @@
+=== RAG 系统评估 ===
+[INFO] 知识库加载成功，共 1577 个文档块
+测试样本数: 68
+
+[1/68] 问题: 什么是 Transformer 架构？
+  类别: 概念定义
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[2/68] 问题: Transformer 的核心创新是什么？
+  类别: 核心技术
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', '浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[3/68] 问题: BERT 和 GPT 有什么区别？
+  类别: 技术对比
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[4/68] 问题: 大语言模型的训练分为哪几个阶段？
+  类别: 训练流程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[5/68] 问题: 什么是 RAG？
+  类别: 概念定义
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[6/68] 问题: RAG 有哪些优势？
+  类别: 优势特点
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[7/68] 问题: RAG 系统包含哪些核心环节？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[8/68] 问题: 常用的向量数据库有哪些？
+  类别: 工具推荐
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[9/68] 问题: 什么是提示工程？
+  类别: 概念定义
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[10/68] 问题: 什么是 Agent 智能体？
+  类别: 概念定义
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[11/68] 问题: 选择向量数据库需要考虑哪些因素？
+  类别: 选型建议
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[12/68] 问题: RLHF 是什么？
+  类别: 概念定义
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[13/68] 问题: 什么是思维链（Chain-of-Thought）？
+  类别: 提示工程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[14/68] 问题: FAISS 是什么？
+  类别: 工具介绍
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[15/68] 问题: 什么是自监督学习？
+  类别: 概念定义
+  检索到的来源: ['sample_document.txt', '浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[16/68] 问题: Transformer 和之前的 RNN、LSTM 有什么区别？
+  类别: 技术对比
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'three_kingdoms.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[17/68] 问题: 预训练阶段的目标是什么？
+  类别: 训练流程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', '浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[18/68] 问题: 有监督微调（SFT）阶段做什么？
+  类别: 训练流程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', '浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[19/68] 问题: 强化学习人类反馈（RLHF）阶段的作用是什么？
+  类别: 训练流程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[20/68] 问题: 哪些商业模型采用了预训练、SFT、RLHF 这样的训练范式？
+  类别: 实际应用
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[21/68] 问题: 提示工程中的少样本提示是什么？
+  类别: 提示工程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[22/68] 问题: 角色提示有什么作用？
+  类别: 提示工程
+  检索到的来源: ['sample_document.txt', 'three_kingdoms.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[23/68] 问题: 好的提示词有什么作用？
+  类别: 提示工程
+  检索到的来源: ['sample_document.txt', 'three_kingdoms.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[24/68] 问题: RAG 系统如何减少幻觉？
+  类别: 优势特点
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[25/68] 问题: RAG 系统的知识库可以随时更新吗？
+  类别: 优势特点
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[26/68] 问题: RAG 能否访问私有或最新的数据？
+  类别: 优势特点
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[27/68] 问题: 向量数据库的作用是什么？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[28/68] 问题: Chroma 适合什么场景？
+  类别: 工具推荐
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[29/68] 问题: Milvus 适合什么场景？
+  类别: 工具推荐
+  检索到的来源: ['three_kingdoms.txt', 'sample_document.txt', 'three_kingdoms.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[30/68] 问题: Pinecone 有什么特点？
+  类别: 工具推荐
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[31/68] 问题: Agent 系统的工作流程是什么？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[32/68] 问题: Agent 系统的关键能力有哪些？
+  类别: 核心技术
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[33/68] 问题: 当前流行的 Agent 框架有哪些？
+  类别: 工具推荐
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[34/68] 问题: Agent 被认为是通往什么的重要方向？
+  类别: 实际应用
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[35/68] 问题: 自注意力机制有什么作用？
+  类别: 核心技术
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[36/68] 问题: Transformer 由哪两部分组成？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', '浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[37/68] 问题: 哪年提出的 Transformer？
+  类别: 概念定义
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'three_kingdoms.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[38/68] 问题: RAG 为什么要先检索相关信息片段？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[39/68] 问题: 向量数据库如何工作？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[40/68] 问题: 提示工程的常见技巧有哪些？
+  类别: 提示工程
+  检索到的来源: ['sample_document.txt', '浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf', 'three_kingdoms.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[41/68] 问题: 大语言模型预训练阶段学什么？
+  类别: 训练流程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[42/68] 问题: 选择向量数据库时，数据规模是考虑因素吗？
+  类别: 选型建议
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[43/68] 问题: Agent 需要调用工具吗？
+  类别: 核心技术
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[44/68] 问题: 纯 LLM 方案和 RAG 方案有什么区别？
+  类别: 技术对比
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[45/68] 问题: 提示工程是一门什么技术？
+  类别: 概念定义
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', '浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[46/68] 问题: 思维链（Chain-of-Thought）有什么作用？
+  类别: 提示工程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[47/68] 问题: Transformer 的并行处理有什么优势？
+  类别: 优势特点
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[48/68] 问题: RAG 系统如何更新知识库？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[49/68] 问题: 向量数据库中的文档是如何存储的？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[50/68] 问题: 查询时向量数据库做什么？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[51/68] 问题: 谁开源了 FAISS？
+  类别: 工具介绍
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'three_kingdoms.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[52/68] 问题: 有监督微调（SFT）使用什么数据？
+  类别: 训练流程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[53/68] 问题: 预训练阶段的数据标注情况是？
+  类别: 训练流程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[54/68] 问题: Agent 系统的工具调用能力指的是？
+  类别: 核心技术
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[55/68] 问题: BERT 只使用 Transformer 的哪个部分？
+  类别: 技术对比
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[56/68] 问题: GPT 只使用 Transformer 的哪个部分？
+  类别: 技术对比
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[57/68] 问题: RAG 系统的四个核心环节是什么？
+  类别: 系统架构
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[58/68] 问题: 向量数据库选型时，查询延迟是考虑因素吗？
+  类别: 选型建议
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[59/68] 问题: 大语言模型训练的三个阶段是什么？
+  类别: 训练流程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[60/68] 问题: 什么是角色提示？
+  类别: 提示工程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[61/68] 问题: 提示工程能显著提升什么？
+  类别: 优势特点
+  检索到的来源: ['sample_document.txt', '浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf', '浦发上海浦东发展银行西安分行个金客户经理考核办法.pdf']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[62/68] 问题: Agent 系统的任务规划能力指的是？
+  类别: 核心技术
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[63/68] 问题: RAG 为什么可以减少幻觉？
+  类别: 优势特点
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'three_kingdoms.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[64/68] 问题: 选择向量数据库时，运维成本是考虑因素吗？
+  类别: 选型建议
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[65/68] 问题: 预训练阶段的目标是预测什么？
+  类别: 训练流程
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[66/68] 问题: 向量数据库专门用于什么？
+  类别: 概念定义
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[67/68] 问题: Agent 系统的记忆管理能力指的是？
+  类别: 核心技术
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+[68/68] 问题: 选择向量数据库时，一致性要求是考虑因素吗？
+  类别: 选型建议
+  检索到的来源: ['sample_document.txt', 'sample_document.txt', 'sample_document.txt']
+  期望的来源: ['sample_document.txt']
+  [HIT] 检索命中
+
+============================================================
+评估结果 - 总体
+============================================================
+总问题数: 68
+有效问题数: 68
+错误数: 0
+命中数: 68
+检索准确率: 100.00%
+检索召回率: 100.00%
+
+============================================================
+评估结果 - 按类别
+============================================================
+类别: 优势特点
+  问题数: 7
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 实际应用
+  问题数: 2
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 工具介绍
+  问题数: 2
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 工具推荐
+  问题数: 5
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 技术对比
+  问题数: 5
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 提示工程
+  问题数: 7
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 核心技术
+  问题数: 7
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 概念定义
+  问题数: 9
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 系统架构
+  问题数: 10
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 训练流程
+  问题数: 9
+  准确率: 100.00%
+  召回率: 100.00%
+类别: 选型建议
+  问题数: 5
+  准确率: 100.00%
+  召回率: 100.00%
