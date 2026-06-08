@@ -7,3 +7,4 @@ PyPDF2>=3.0.1               # PDF支持
 openpyxl>=3.1.2             # Excel支持
 python-pptx>=0.6.23         # PowerPoint支持
 beautifulsoup4>=4.12.2      # HTML解析
+faiss-cpu>=1.8.0            # FAISS向量数据库

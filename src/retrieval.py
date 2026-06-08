@@ -22,7 +22,7 @@ from dashscope import Generation
 
 from src.config import config
 from src.embedding import embed_text
-from src.vector_store import VectorStore
+from src.vector_db import VectorDB
 
 
 def build_rerank_prompt(question: str, contexts: List[str]) -> str:
@@ -79,8 +79,8 @@ class Retriever:
       Query 改写 → Embedding → 混合/向量检索 → Rerank
     """
 
-    def __init__(self, vector_store: VectorStore):
-        self.vector_store = vector_store
+    def __init__(self, vector_db: VectorDB):
+        self.vector_db = vector_db
 
     def retrieve(
         self,
@@ -110,14 +110,14 @@ class Retriever:
 
         if config.use_bm25:
             print(f"[混合检索] 向量语义 + BM25 关键词 (BM25 权重: {config.bm25_weight})")
-            results = self.vector_store.hybrid_search(
+            results = self.vector_db.hybrid_search(
                 query_text=question,
                 query_vector=query_vector,
                 top_k=fetch_k,
                 bm25_weight=config.bm25_weight,
             )
         else:
-            results = self.vector_store.search(query_vector, top_k=fetch_k)
+            results = self.vector_db.search(query_vector, top_k=fetch_k)
 
         # 拆分为文本和来源
         contexts = [chunk for chunk, score, source in results]
