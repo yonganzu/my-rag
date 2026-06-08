@@ -145,8 +145,8 @@ def chat(message, history, conversation_id):
     global rag, knowledge_base_loaded, current_user
 
     if not knowledge_base_loaded or rag is None:
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": "⚠️ 请先上传文档构建知识库"})
+        # Gradio Chatbot 格式: (user_msg, assistant_msg)
+        history.append((message, "⚠️ 请先上传文档构建知识库"))
         return history, conversation_id
 
     try:
@@ -157,7 +157,7 @@ def chat(message, history, conversation_id):
             show_citations=config.show_citations,
         )
 
-        # 保存用户消息
+        # 保存用户消息到 conversation_manager
         if conversation_id:
             conversation_manager.add_message(
                 current_user["username"],
@@ -173,13 +173,12 @@ def chat(message, history, conversation_id):
                 {"contexts": contexts} if contexts else None
             )
 
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": answer})
+        # Gradio Chatbot 格式: (user_msg, assistant_msg)
+        history.append((message, answer))
         return history, conversation_id
 
     except Exception as e:
-        history.append({"role": "user", "content": message})
-        history.append({"role": "assistant", "content": f"❌ 错误: {str(e)}"})
+        history.append((message, f"❌ 错误: {str(e)}"))
         return history, conversation_id
 
 
@@ -226,10 +225,23 @@ def load_conversation(conversation_id):
         conversation_id
     )
 
-    history = [
-        {"role": msg["role"], "content": msg["content"]}
-        for msg in messages
-    ]
+    # Gradio Chatbot 格式: [(user_msg, assistant_msg), ...]
+    history = []
+    current_pair = [None, None]
+    
+    for msg in messages:
+        if msg["role"] == "user":
+            if current_pair[0] is not None and current_pair[1] is not None:
+                history.append(tuple(current_pair))
+            current_pair = [msg["content"], None]
+        elif msg["role"] == "assistant":
+            current_pair[1] = msg["content"]
+            if current_pair[0] is not None:
+                history.append(tuple(current_pair))
+                current_pair = [None, None]
+    
+    if current_pair[0] is not None and current_pair[1] is not None:
+        history.append(tuple(current_pair))
 
     return history, conversation_id
 
