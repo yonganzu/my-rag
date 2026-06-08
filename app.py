@@ -65,7 +65,7 @@ def get_kb_stats():
     """获取知识库统计信息"""
     global rag, knowledge_base_loaded
     if rag is not None and knowledge_base_loaded:
-        chunk_count = len(rag.vector_store)
+        chunk_count = len(rag.vector_db)
         doc_count = len(rag._doc_metadata) if rag._doc_metadata else 0
         return f"📊 {doc_count} 个文档 · {chunk_count} 个文本块"
     return "📊 知识库未加载"
@@ -196,14 +196,10 @@ def delete_all_docs():
         for f in upload_folder.iterdir():
             if f.is_file() and f.suffix.lower() in supported_exts:
                 f.unlink()
-    if rag is not None and rag.vector_store is not None:
-        rag.vector_store.chunks = []
-        rag.vector_store.sources = []
-        rag.vector_store.vectors = None
-        rag.vector_store.bm25 = type(rag.vector_store.bm25)()
-        rag._doc_metadata = None
-        rag._ready = False
-    knowledge_base_loaded = False
+    # 重新初始化 RAGPipeline
+    if rag is not None:
+        rag = RAGPipeline()
+        knowledge_base_loaded = False
     db_path = Path("data/vector_db")
     if db_path.exists():
         shutil.rmtree(db_path)
