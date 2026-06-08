@@ -134,23 +134,37 @@ learn/
 
 ### 3. embedding.py - 文本向量化
 
-将文本转换为向量，使用阿里云 DashScope 的 `text-embedding-v2` 模型。
+将文本转换为向量，支持两种模式：
+- **DashScope API**：使用阿里云的 `text-embedding-v2` 模型
+- **本地模型**：使用 Sentence-BERT 系列模型（如 `all-MiniLM-L6-v2`）
 
-### 4. vector_store.py - 向量存储与 BM25 索引
+### 4. llm.py - 大语言模型接口
 
-一个内存向量存储实现，包含：
-- **向量检索**：余弦相似度计算
-- **BM25 索引**：基于词频的关键词检索
-- **混合检索**：`hybrid_search()` 用 RRF 算法融合两者
+统一的 LLM 调用接口，支持三种模式：
+- **DashScope API**：调用通义千问等云端模型
+- **Ollama**：本地运行开源模型（如 Qwen、Llama3）
+- **Transformers**：直接使用 HuggingFace 模型
 
-### 5. retrieval.py - 检索器
+### 5. src/vector_db/ - 向量数据库模块
+
+统一的向量数据库抽象层，支持多后端：
+
+| 文件 | 功能 |
+|------|------|
+| `base.py` | 抽象基类，定义统一接口 |
+| `memory_db.py` | 内存向量存储实现 |
+| `faiss_db.py` | FAISS 高性能向量检索 |
+| `bm25_retriever.py` | 独立的 BM25 关键词检索器 |
+| `hybrid_retriever.py` | 混合检索器，用 RRF 融合向量+BM25 |
+
+### 6. retrieval.py - 检索器
 
 负责检索全流程：
 - Query 改写：用 LLM 优化模糊问题
 - 混合检索：向量 + BM25 互补
 - Rerank 重排序：用 LLM 对候选结果重新排序
 
-### 6. rag_pipeline.py - RAG 流水线
+### 7. rag_pipeline.py - RAG 流水线
 
 串联所有模块，专注编排：
 
@@ -166,7 +180,7 @@ learn/
 └──────┬──────┘
        ↓
 ┌─────────────┐
-│  LLM 生成   │  调用通义千问生成最终回答
+│  LLM 生成   │  通过 llm.py 调用模型生成最终回答
 └─────────────┘
 ```
 
