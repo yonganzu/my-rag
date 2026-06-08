@@ -272,7 +272,7 @@ def do_login(username, password):
     global current_user
 
     if not username or not password:
-        return "❌ 请输入用户名和密码", None, None, None, None
+        return "❌ 请输入用户名和密码", gr.update(), gr.update(), "", ""
 
     success, session_id, error = auth_manager.login(username, password)
 
@@ -293,7 +293,7 @@ def do_login(username, password):
             get_kb_stats()
         )
     else:
-        return f"❌ {error}", None, None, None, None
+        return f"❌ {error}", gr.update(), gr.update(), "", ""
 
 
 def do_register(username, password, confirm_password):
@@ -332,8 +332,8 @@ def do_logout():
         gr.update(visible=False),  # 隐藏主界面
         gr.update(visible=True),  # 显示登录框
         "👋 已退出登录",
-        None,
-        None,
+        [],
+        gr.update(value=""),
         "📊 知识库未加载",
         []
     )
@@ -437,43 +437,6 @@ with gr.Blocks(title="RAG 知识库问答", css=CSS) as demo:
             # 切换登录/注册
             is_registering = gr.State(False)
 
-            def toggle_register_mode(is_reg):
-                return (
-                    gr.update(visible=not is_reg),  # 登录按钮
-                    gr.update(visible=is_reg),  # 注册按钮
-                    gr.update(visible=is_reg),  # 确认密码
-                    gr.update(value="注册" if is_reg else "登录"),  # 主按钮文本
-                    gr.update(value="已有账号？登录" if is_reg else "没有账号？注册"),  # 切换按钮文本
-                    gr.update("" if is_reg else login_msg.value),  # 清除消息
-                    gr.update(value=is_reg)  # 更新状态
-                )
-
-            toggle_register_btn.click(
-                toggle_register_mode,
-                is_registering,
-                [login_btn, register_btn, confirm_password_input, login_btn, toggle_register_btn, login_msg, is_registering]
-            )
-
-            def handle_login(username, password):
-                return do_login(username, password)
-
-            def handle_register(username, password, confirm_password, is_reg):
-                if not is_reg:
-                    return login_msg.value if login_msg.value else ""
-                return do_register(username, password, confirm_password)
-
-            login_btn.click(
-                handle_login,
-                [username_input, password_input],
-                [login_msg, demo, login_section, None, None, None, None]
-            )
-
-            register_btn.click(
-                lambda u, p, cp, ir: handle_register(u, p, cp, ir),
-                [username_input, password_input, confirm_password_input, is_registering],
-                login_msg
-            )
-
     # ==================== 主界面 ====================
     with gr.Group(visible=False) as main_interface:
         with gr.Row(equal_height=True):
@@ -559,7 +522,45 @@ with gr.Blocks(title="RAG 知识库问答", css=CSS) as demo:
 
     # ==================== 事件绑定 ====================
 
-    # 页面加载时更新用户信息
+    # 切换登录/注册
+    def toggle_register_mode(is_reg):
+        return (
+            gr.update(visible=not is_reg),  # 登录按钮
+            gr.update(visible=is_reg),  # 注册按钮
+            gr.update(visible=is_reg),  # 确认密码
+            gr.update(value="注册" if is_reg else "登录"),  # 主按钮文本
+            gr.update(value="已有账号？登录" if is_reg else "没有账号？注册"),  # 切换按钮文本
+            gr.update("" if is_reg else login_msg.value),  # 清除消息
+            gr.update(value=is_reg)  # 更新状态
+        )
+
+    toggle_register_btn.click(
+        toggle_register_mode,
+        is_registering,
+        [login_btn, register_btn, confirm_password_input, login_btn, toggle_register_btn, login_msg, is_registering]
+    )
+
+    def handle_login(username, password):
+        return do_login(username, password)
+
+    def handle_register(username, password, confirm_password, is_reg):
+        if not is_reg:
+            return login_msg.value if login_msg.value else ""
+        return do_register(username, password, confirm_password)
+
+    login_btn.click(
+        handle_login,
+        [username_input, password_input],
+        [login_msg, main_interface, login_section, doc_list, kb_stats]
+    )
+
+    register_btn.click(
+        lambda u, p, cp, ir: handle_register(u, p, cp, ir),
+        [username_input, password_input, confirm_password_input, is_registering],
+        login_msg
+    )
+
+    # 页面加载时更新用户信息和对话列表
     def update_user_info():
         global current_user
         if current_user["username"]:
@@ -567,17 +568,15 @@ with gr.Blocks(title="RAG 知识库问答", css=CSS) as demo:
             return f'<div style="padding:8px 0;font-weight:600;color:#10a37f;">👤 {current_user["username"]} ({role_text})</div>'
         return ""
 
-    demo.load(
-        update_user_info,
-        None,
-        user_info
-    )
+    def load_initial_data():
+        doc_list_val, kb_stats_val = load_kb()
+        conv_list_val = get_conversation_list()
+        return doc_list_val, kb_stats_val, conv_list_val
 
-    # 页面加载时更新对话列表
     demo.load(
-        get_conversation_list,
+        lambda: (update_user_info(), load_initial_data()[0], load_initial_data()[1], load_initial_data()[2]),
         None,
-        conversation_list
+        [user_info, doc_list, kb_stats, conversation_list]
     )
 
     # 新对话
@@ -608,7 +607,7 @@ with gr.Blocks(title="RAG 知识库问答", css=CSS) as demo:
     # 登出
     logout_btn.click(
         do_logout,
-        None,
+        [],
         [main_interface, login_section, login_msg, chatbot, current_conv_id, kb_stats, conversation_list]
     )
 
@@ -644,13 +643,6 @@ with gr.Blocks(title="RAG 知识库问答", css=CSS) as demo:
         delete_all_docs,
         None,
         [doc_list, kb_stats, chatbot, upload_msg]
-    )
-
-    # 页面加载时加载知识库
-    demo.load(
-        load_kb,
-        None,
-        [doc_list, kb_stats]
     )
 
 

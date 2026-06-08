@@ -28,9 +28,9 @@ class Conversation:
     id: str
     user_id: str
     title: str  # 对话标题，默认取第一条用户消息
-    messages: List[Dict] = field(default_factory=list)
     created_at: str
     updated_at: str
+    messages: List[Dict] = field(default_factory=list)
     is_active: bool = True
 
 
