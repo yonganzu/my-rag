@@ -45,7 +45,6 @@ def get_document_list():
     items = []
 
     if rag is not None and rag._doc_metadata is not None and len(rag._doc_metadata) > 0:
-        items = []
         for fname, meta in rag._doc_metadata.items():
             size_str = format_size(meta.get("size", 0))
             items.append(f"📄 {fname} ({size_str})")
@@ -202,7 +201,7 @@ def delete_all_docs():
     db_path = Path("data/vector_db")
     if db_path.exists():
         shutil.rmtree(db_path)
-    return get_document_list(), get_kb_stats(), None, "🗑️ 知识库已清空"
+    return get_document_list(), get_kb_stats(), "", "🗑️ 知识库已清空"
 
 
 def start_new_conversation():
@@ -259,7 +258,7 @@ def get_conversation_list():
         updated = conv.get("updated_at", "")[:16]  # 取前16个字符（YYYY-MM-DDTHH:MM）
         msg_count = len(conv.get("messages", []))
         result.append(
-            f"{conv['title']} | {msg_count}条 | {updated}"
+            f"{conv['id']}|{conv['title']} | {msg_count}条 | {updated}"
         )
 
     return result
@@ -594,11 +593,22 @@ with gr.Blocks(title="RAG 知识库问答", css=CSS) as demo:
         [chatbot, current_conv_id, upload_msg]
     )
 
-    # 加载对话
+    # 加载对话 - 需要从选择值中提取 conversation_id
+    def extract_conv_id(selection):
+        if not selection:
+            return "", None, []
+        # 格式: conv_id|title | count | time
+        conv_id = selection
+        if "|" in selection:
+            parts = selection.split("|", 1)
+            conv_id = parts[0]
+        history, new_conv_id = load_conversation(conv_id)
+        return conv_id, new_conv_id, history
+
     load_conv_btn.click(
-        load_conversation,
+        lambda sel: extract_conv_id(sel),
         conversation_list,
-        [chatbot, current_conv_id]
+        [current_conv_id, current_conv_id, chatbot]
     )
 
     # 删除对话
