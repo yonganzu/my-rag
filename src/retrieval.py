@@ -22,6 +22,7 @@ from src.config import config
 from src.embedding import embed_text, embed_texts
 from src.llm import llm_call
 from src.vector_db import VectorDB, HybridRetriever, BM25Retriever
+from src.permission import filter_docs_by_permission, get_user_max_doc_level, DocLevel
 import numpy as np
 
 # ── BGE-Reranker 模型缓存 ────────────────────────────────────────
@@ -148,13 +149,24 @@ class Retriever:
         question: str,
         use_rerank: bool = False,
         use_query_rewrite: bool = False,
+        user_role: str = "user",
     ) -> tuple[List[str], List[str]]:
         """
         检索与问题最相关的文档块
 
+        Args:
+            question: 用户问题
+            use_rerank: 是否使用重排序
+            use_query_rewrite: 是否使用 Query 改写
+            user_role: 用户角色，用于文档级别过滤
+
         返回：
           (contexts, sources) - 上下文列表和对应的来源文件名列表
         """
+        # 获取用户可访问的最高文档级别
+        max_doc_level = get_user_max_doc_level(user_role)
+        print(f"[权限] 用户角色: {user_role}, 可访问最高级别: {max_doc_level}")
+        
         # Query 改写
         original_question = question
         if use_query_rewrite:
@@ -197,6 +209,31 @@ class Retriever:
         sources = [source for chunk, score, source in results]
 
         print(f"检索到 {len(contexts)} 个候选文档块")
+        
+        # 根据用户角色过滤文档（硬控制）
+        # 注意：这里假设文档来源中包含级别信息，格式为 "filename|level"
+        # 如果没有级别信息，默认为 public
+        if results:
+            filtered_results = []
+            for chunk, score, source in results:
+                # 解析文档级别
+                if "|" in source:
+                    doc_source, doc_level = source.rsplit("|", 1)
+                else:
+                    doc_source = source
+                    doc_level = DocLevel.PUBLIC.value
+                
+                # 检查用户是否有权限访问该文档
+                from src.permission import DocLevel as DL
+                if DL.can_access(max_doc_level, doc_level):
+                    filtered_results.append((chunk, score, source))
+            
+            if len(filtered_results) < len(results):
+                print(f"[权限过滤] 过滤了 {len(results) - len(filtered_results)} 个无权访问的文档")
+            
+            results = filtered_results
+            contexts = [chunk for chunk, score, source in results]
+            sources = [source for chunk, score, source in results]
 
         # 使用重排序
         if use_rerank and len(contexts) > 1:

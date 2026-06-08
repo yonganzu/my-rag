@@ -9,6 +9,11 @@
   - .pdf: PDF文档
   - .html: HTML网页
 
+文档级别支持：
+  - 文档可以设置安全级别：public, internal, confidential, secret
+  - 级别可以通过文件名前缀指定，如：[confidential]敏感文档.txt
+  - 也可以通过配置文件 data/doc_levels.json 指定
+
 为什么需要分块（Chunking）？
   - LLM 有上下文窗口限制，不能把整本书塞进一个 prompt
   - 检索时，细粒度的块比整篇文档更容易匹配到用户问题
@@ -20,8 +25,86 @@
   - 按需导入库，避免不必要的依赖加载
 """
 
+import json
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Optional
+
+# 文档级别定义
+DOC_LEVELS = ["public", "internal", "confidential", "secret"]
+DEFAULT_DOC_LEVEL = "internal"  # 默认文档级别
+
+
+def parse_doc_level(filename: str) -> tuple[str, str]:
+    """
+    从文件名中解析文档级别
+    
+    支持的格式：
+      - [secret]敏感文档.txt -> ("secret", "敏感文档.txt")
+      - [confidential]机密.txt -> ("confidential", "机密.txt")
+      - 普通文档.txt -> ("internal", "普通文档.txt")
+    
+    Args:
+        filename: 文件名
+        
+    Returns:
+        (文档级别, 清理后的文件名)
+    """
+    # 检查是否有级别前缀
+    if filename.startswith("[") and "]" in filename:
+        end = filename.index("]")
+        level = filename[1:end].strip().lower()
+        if level in DOC_LEVELS:
+            clean_name = filename[end+1:].strip()
+            return level, clean_name
+    
+    return DEFAULT_DOC_LEVEL, filename
+
+
+def load_doc_levels_config(config_path: str = "data/doc_levels.json") -> Dict[str, str]:
+    """
+    加载文档级别配置文件
+    
+    Args:
+        config_path: 配置文件路径
+        
+    Returns:
+        文件名 -> 级别的映射
+    """
+    path = Path(config_path)
+    if path.exists():
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except (json.JSONDecodeError, FileNotFoundError):
+            pass
+    return {}
+
+
+def get_doc_level(filename: str, config: Optional[Dict[str, str]] = None) -> str:
+    """
+    获取文档的级别
+    
+    优先级：
+      1. 配置文件中的设置
+      2. 文件名前缀
+      3. 默认级别
+    
+    Args:
+        filename: 文件名
+        config: 文档级别配置
+        
+    Returns:
+        文档级别
+    """
+    # 1. 检查配置文件
+    if config and filename in config:
+        level = config[filename].lower()
+        if level in DOC_LEVELS:
+            return level
+    
+    # 2. 检查文件名前缀
+    level, _ = parse_doc_level(filename)
+    return level
 
 
 def load_text(file_path: str | Path) -> str:
@@ -216,7 +299,10 @@ def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, o
       specific_files: 可选，指定要加载的文件列表（用于增量更新）
 
     返回：
-      (all_chunks, doc_metadata, chunk_sources) - 文档块列表、文档元数据、每个块的来源文件名
+      (all_chunks, doc_metadata, chunk_sources) - 文档块列表、文档元数据、每个块的来源文件名（包含级别）
+      
+    注意：
+      chunk_sources 的格式为 "filename|level"，例如 "report.txt|internal"
     """
     folder = Path(folder_path)
     if not folder.exists() or not folder.is_dir():
@@ -226,6 +312,9 @@ def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, o
     chunk_sources: List[str] = []
     doc_metadata: dict = {}
     supported_extensions = ("*.txt", "*.docx", "*.xlsx", "*.pptx", "*.pdf", "*.html")
+    
+    # 加载文档级别配置
+    doc_levels_config = load_doc_levels_config()
     
     all_files = []
     for ext in supported_extensions:
@@ -244,13 +333,21 @@ def load_documents_from_folder(folder_path: str | Path, chunk_size: int = 500, o
         try:
             chunks = load_and_chunk(doc_file, chunk_size, overlap)
             all_chunks.extend(chunks)
-            chunk_sources.extend([doc_file.name] * len(chunks))
-            # 记录文档元数据
+            
+            # 获取文档级别
+            doc_level = get_doc_level(doc_file.name, doc_levels_config)
+            
+            # chunk_sources 格式: "filename|level"
+            source_with_level = f"{doc_file.name}|{doc_level}"
+            chunk_sources.extend([source_with_level] * len(chunks))
+            
+            # 记录文档元数据（包含级别）
             doc_metadata[doc_file.name] = {
                 "mtime": doc_file.stat().st_mtime,
-                "size": doc_file.stat().st_size
+                "size": doc_file.stat().st_size,
+                "level": doc_level
             }
-            print(f"    -> 分割为 {len(chunks)} 个文本块")
+            print(f"    -> 分割为 {len(chunks)} 个文本块 (级别: {doc_level})")
         except Exception as e:
             print(f"    -> 加载失败: {e}")
 
