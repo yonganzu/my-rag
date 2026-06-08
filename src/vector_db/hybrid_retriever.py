@@ -12,6 +12,7 @@
 from typing import List, Tuple, Dict
 import numpy as np
 
+from src.config import config
 from .base import VectorDB
 from .bm25_retriever import BM25Retriever
 
@@ -79,14 +80,26 @@ class HybridRetriever:
         if self.vector_db.is_empty() or self.bm25_retriever.is_empty():
             return []
 
-        RRF_K = 60
-        fetch_k = top_k * 3
+        RRF_K = config.rrf_k
+        fetch_k = top_k * config.rrf_candidate_factor
 
         # -- 1. 向量检索 --
         vec_results = self.vector_db.search(query_vector, top_k=fetch_k)
+        
+        # 输出向量检索详细日志
+        print(f"\n[向量检索] 共检索到 {len(vec_results)} 条结果")
+        for i, (chunk, score, source) in enumerate(vec_results[:5]):  # 只显示前5条
+            print(f"  [{i+1}] 相似度: {score:.4f} | 来源: {source}")
+            print(f"      内容: {chunk[:80]}..." if len(chunk) > 80 else f"      内容: {chunk}")
 
         # -- 2. BM25 检索 --
         bm25_results = self.bm25_retriever.search(query_text, top_k=fetch_k)
+        
+        # 输出 BM25 检索详细日志
+        print(f"\n[BM25 检索] 共检索到 {len(bm25_results)} 条结果")
+        for i, (idx, score, chunk, source) in enumerate(bm25_results[:5]):  # 只显示前5条
+            print(f"  [{i+1}] BM25分数: {score:.4f} | 来源: {source}")
+            print(f"      内容: {chunk[:80]}..." if len(chunk) > 80 else f"      内容: {chunk}")
 
         # -- 3. 构建文档映射（用于去重和结果构建）--
         chunk_to_source: Dict[str, str] = {}
@@ -98,26 +111,86 @@ class HybridRetriever:
 
         # -- 4. RRF 融合 --
         rrf_scores: Dict[str, float] = {}
+        rrf_details: Dict[str, dict] = {}  # 存储详细分数信息
 
         # 向量检索的贡献
+        print(f"\n[RRF 融合] RRF_K={RRF_K}, BM25权重={bm25_weight}")
+        print("-" * 60)
+        print(f"向量检索贡献（权重: {1.0 - bm25_weight:.2f}）:")
+        
         for rank, (chunk, score, source) in enumerate(vec_results):
-            rrf_scores[chunk] = rrf_scores.get(chunk, 0) + \
-                (1.0 - bm25_weight) / (RRF_K + rank + 1)
+            vec_contribution = (1.0 - bm25_weight) / (RRF_K + rank + 1)
+            rrf_scores[chunk] = rrf_scores.get(chunk, 0) + vec_contribution
+            
+            if chunk not in rrf_details:
+                rrf_details[chunk] = {
+                    'vec_rank': None,
+                    'vec_score': None,
+                    'vec_contribution': 0.0,
+                    'bm25_rank': None,
+                    'bm25_score': None,
+                    'bm25_contribution': 0.0,
+                    'total_score': 0.0,
+                    'source': source
+                }
+            rrf_details[chunk]['vec_rank'] = rank + 1
+            rrf_details[chunk]['vec_score'] = score
+            rrf_details[chunk]['vec_contribution'] = vec_contribution
+            rrf_details[chunk]['source'] = source
+            
+            if rank < 3:  # 只显示前3条的融合详情
+                print(f"  排名 {rank+1}: vec贡献={vec_contribution:.6f} | 相似度={score:.4f}")
 
         # BM25 检索的贡献
+        print(f"\nBM25 检索贡献（权重: {bm25_weight:.2f}）:")
         for rank, (idx, score, chunk, source) in enumerate(bm25_results):
-            rrf_scores[chunk] = rrf_scores.get(chunk, 0) + \
-                bm25_weight / (RRF_K + rank + 1)
+            bm25_contribution = bm25_weight / (RRF_K + rank + 1)
+            rrf_scores[chunk] = rrf_scores.get(chunk, 0) + bm25_contribution
+            
+            if chunk not in rrf_details:
+                rrf_details[chunk] = {
+                    'vec_rank': None,
+                    'vec_score': None,
+                    'vec_contribution': 0.0,
+                    'bm25_rank': None,
+                    'bm25_score': None,
+                    'bm25_contribution': 0.0,
+                    'total_score': 0.0,
+                    'source': source
+                }
+            rrf_details[chunk]['bm25_rank'] = rank + 1
+            rrf_details[chunk]['bm25_score'] = score
+            rrf_details[chunk]['bm25_contribution'] = bm25_contribution
+            rrf_details[chunk]['total_score'] = rrf_scores[chunk]
+            
+            if rank < 3:  # 只显示前3条的融合详情
+                print(f"  排名 {rank+1}: BM25贡献={bm25_contribution:.6f} | BM25分数={score:.4f}")
 
         # -- 5. 按 RRF 分数排序 --
         sorted_chunks = sorted(rrf_scores.keys(), key=lambda c: rrf_scores[c], reverse=True)
 
-        # -- 6. 构建最终结果 --
+        # -- 6. 输出融合结果详情 --
+        print("\n[融合结果详情] 按 RRF 分数排序:")
+        print("-" * 80)
+        print(f"{'排名':<4} {'向量排名':<8} {'向量分数':<10} {'BM25排名':<8} {'BM25分数':<10} {'RRF分数':<12} {'来源'}")
+        print("-" * 80)
+        
+        for i, chunk in enumerate(sorted_chunks[:top_k]):
+            details = rrf_details[chunk]
+            vec_rank_str = str(details['vec_rank']) if details['vec_rank'] else '-'
+            vec_score_str = f"{details['vec_score']:.4f}" if details['vec_score'] else '-'
+            bm25_rank_str = str(details['bm25_rank']) if details['bm25_rank'] else '-'
+            bm25_score_str = f"{details['bm25_score']:.4f}" if details['bm25_score'] else '-'
+            
+            print(f"{i+1:<4} {vec_rank_str:<8} {vec_score_str:<10} {bm25_rank_str:<8} {bm25_score_str:<10} {rrf_scores[chunk]:<12.6f} {details['source']}")
+
+        # -- 7. 构建最终结果 --
         results = []
         for chunk in sorted_chunks[:top_k]:
             source = chunk_to_source.get(chunk, "未知来源")
             results.append((chunk, rrf_scores[chunk], source))
 
+        print(f"\n[混合检索] 最终返回 {len(results)} 条结果")
         return results
 
     def save(self, dir_path: str, doc_metadata: dict = None) -> None:

@@ -90,9 +90,9 @@ class RAGPipeline:
       - memory: 内存实现（降级方案）
     """
 
-    def __init__(self, db_path: str = "data/vector_db", db_type: str = "auto"):
+    def __init__(self, db_path: str = "data/vector_db", db_type: str = None):
         self.db_path = Path(db_path)
-        self.vector_db = VectorDBFactory.create(db_type)
+        self.vector_db = VectorDBFactory.create(db_type or config.vector_db_type)
         self.retriever = Retriever(self.vector_db)
         self._ready = False
         self._doc_metadata = None
@@ -117,11 +117,15 @@ class RAGPipeline:
         print(f"知识库构建完成，共 {len(self.vector_db)} 个文档块")
 
         self.vector_db.save(self.db_path, doc_metadata)
+        # 同时保存 BM25 索引
+        self.retriever.save(str(self.db_path))
         print(f"知识库已保存到 {self.db_path}")
 
     def load_knowledge_base(self) -> bool:
         try:
             self._doc_metadata = self.vector_db.load(self.db_path)
+            # 同时加载 BM25 索引
+            self.retriever.load(str(self.db_path))
             self._ready = True
             print(f"知识库已从 {self.db_path} 加载，共 {len(self.vector_db)} 个文档块")
             return True
@@ -188,6 +192,8 @@ class RAGPipeline:
 
         print(f"[增量更新] 已添加 {len(chunks)} 个文档块，知识库共 {len(self.vector_db)} 个文档块")
         self.vector_db.save(self.db_path, self._doc_metadata)
+        # 同时保存 BM25 索引
+        self.retriever.save(str(self.db_path))
         print(f"[增量更新] 知识库已保存到 {self.db_path}")
 
     # ═════════════════════════════════════════════════════════════

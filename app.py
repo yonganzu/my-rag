@@ -143,18 +143,46 @@ def chat(message, history, conversation_id):
     """处理聊天消息"""
     global rag, knowledge_base_loaded, current_user
 
+    # 调试日志：打印接收到的数据
+    print(f"\n===== [前端→后端] 收到消息 =====")
+    print(f"message: {message[:50]}..." if len(message) > 50 else f"message: {message}")
+    print(f"history length: {len(history)}")
+    print(f"conversation_id: {conversation_id}")
+    print(f"knowledge_base_loaded: {knowledge_base_loaded}")
+    print(f"rag is None: {rag is None}")
+
     if not knowledge_base_loaded or rag is None:
         # Gradio Chatbot 格式: (user_msg, assistant_msg)
         history.append((message, "⚠️ 请先上传文档构建知识库"))
+        print(f"[后端→前端] 返回：知识库未加载")
         return history, conversation_id
 
     try:
+        # 获取长期记忆（如果有）
+        long_term_memories = []
+        if current_user["username"]:
+            long_term_memories = conversation_manager.get_long_term_context(
+                current_user["username"],
+                message,
+                max_memories=3
+            )
+            if long_term_memories:
+                print(f"[长期记忆] 检索到 {len(long_term_memories)} 条相关记忆")
+                for i, mem in enumerate(long_term_memories):
+                    print(f"  [{i+1}] {mem[:50]}...")
+
+        # 调用 RAG 回答
         answer, contexts = rag.answer(
             message,
             use_rerank=config.use_rerank,
             use_query_rewrite=config.use_query_rewrite,
             show_citations=config.show_citations,
         )
+
+        # 如果有长期记忆，添加到回答中
+        if long_term_memories:
+            memory_text = "\n".join([f"- {mem}" for mem in long_term_memories])
+            answer = f"📖 根据历史对话，我记得：\n{memory_text}\n\n{answer}"
 
         # 保存用户消息到 conversation_manager
         if conversation_id:
@@ -172,12 +200,24 @@ def chat(message, history, conversation_id):
                 {"contexts": contexts} if contexts else None
             )
 
+            # 对话结束后提取长期记忆（每5条消息或最后一条消息）
+            conv = conversation_manager.get_conversation(current_user["username"], conversation_id)
+            if conv and len(conv.get("messages", [])) >= 5:
+                conversation_manager.extract_and_save_memories(current_user["username"], conversation_id)
+
         # Gradio Chatbot 格式: (user_msg, assistant_msg)
         history.append((message, answer))
+        
+        # 调试日志：打印返回的数据
+        print(f"[后端→前端] answer: {answer[:100]}..." if len(answer) > 100 else f"[后端→前端] answer: {answer}")
+        print(f"[后端→前端] history length after append: {len(history)}")
+        
         return history, conversation_id
 
     except Exception as e:
-        history.append((message, f"❌ 错误: {str(e)}"))
+        error_msg = f"❌ 错误: {str(e)}"
+        history.append((message, error_msg))
+        print(f"[后端→前端] 错误: {error_msg}")
         return history, conversation_id
 
 

@@ -154,6 +154,7 @@ class BM25Retriever:
         """持久化索引到磁盘"""
         save_dir = Path(dir_path)
         save_dir.mkdir(parents=True, exist_ok=True)
+        save_path = save_dir / "bm25_index.json"
         data = {
             "k1": self.k1,
             "b": self.b,
@@ -166,28 +167,45 @@ class BM25Retriever:
             "doc_count": self._doc_count,
             "sources": self.sources,
         }
-        with open(save_dir / "bm25_retriever.json", "w", encoding="utf-8") as f:
+        with open(save_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+        print(f"[BM25] 索引已保存到: {save_path}")
 
     def load(self, dir_path: str) -> bool:
         """从磁盘加载索引"""
         load_dir = Path(dir_path)
-        path = load_dir / "bm25_retriever.json"
+        path = load_dir / "bm25_index.json"
         if not path.exists():
+            print(f"[BM25] 索引文件不存在: {path}")
             return False
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.k1 = data["k1"]
-        self.b = data["b"]
-        self.documents = data["documents"]
-        self.tokens_list = data["tokens_list"]
-        self.idf = data["idf"]
-        self.doc_lengths = data["doc_lengths"]
-        self.avgdl = data["avgdl"]
-        self._term_doc_freq = data["term_doc_freq"]
-        self._doc_count = data["doc_count"]
-        self.sources = data.get("sources", [])
-        return True
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.k1 = data["k1"]
+            self.b = data["b"]
+            
+            # 兼容旧格式：旧版本中 documents 存储的是分词结果，没有 tokens_list
+            if "tokens_list" in data:
+                self.tokens_list = data["tokens_list"]
+                self.documents = data["documents"]
+            else:
+                # 旧格式：documents 是分词后的列表，需要转换
+                print(f"[BM25] 检测到旧格式索引，正在转换...")
+                self.tokens_list = data["documents"]
+                # 从分词重建原始文档文本
+                self.documents = [" ".join(tokens) for tokens in self.tokens_list]
+            
+            self.idf = data["idf"]
+            self.doc_lengths = data["doc_lengths"]
+            self.avgdl = data["avgdl"]
+            self._term_doc_freq = data["term_doc_freq"]
+            self._doc_count = data["doc_count"]
+            self.sources = data.get("sources", [])
+            print(f"[BM25] 索引加载成功，共 {self._doc_count} 个文档")
+            return True
+        except Exception as e:
+            print(f"[BM25] 索引加载失败: {e}")
+            return False
 
     def __len__(self) -> int:
         """返回文档数量"""
