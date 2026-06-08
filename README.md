@@ -4,6 +4,14 @@
 
 ## 更新日志
 
+### v1.0.0 (2026-06-08)
+- **模型配置化**：所有模型切换通过 `.env` 文件配置，支持 API/本地模式一键切换
+- **BGE-Reranker-v2-m3 集成**：轻量级本地重排序模型，性能占用低，效果好
+- **配置模板**：新增 `.env.example`，包含完整的配置说明
+- **完全本地运行支持**：可配置为不依赖任何 API，纯本地运行
+- **重排序方法扩展**：支持 `none`、`vector`、`keyword`、`llm`、`bge` 五种重排序方式
+- **新增测试脚本**：`test_rerank.py`、`tests/test_bge_reranker.py`、`tests/test_qwen3_reranker.py`
+
 ### v0.9.0 (2026-06-08)
 - **用户登录系统**：新增 `src/user_manager.py`，支持用户注册、登录、权限管理
 - **历史对话功能**：新增 `src/conversation_manager.py`，支持多轮对话上下文管理
@@ -100,6 +108,7 @@
 ```
 learn/
 ├── .gitignore
+├── .env.example         # 配置模板
 ├── README.md
 ├── requirements.txt
 ├── pyproject.toml
@@ -107,17 +116,24 @@ learn/
 ├── run_app.bat          # Windows Web 界面启动
 ├── main.py              # 命令行入口
 ├── app.py               # Web 前端入口 (Gradio)
+├── test_rerank.py       # 重排序测试脚本
 ├── data/
 │   ├── documents/       # 文档存放目录
 │   │   └── sample_document.txt
-│   └── vector_db/       # 向量库持久化目录（运行时生成）
+│   ├── vector_db/       # 向量库持久化目录（运行时生成）
+│   ├── users.json       # 用户数据（运行时生成）
+│   └── conversations/   # 对话历史（运行时生成）
 ├── src/
 │   ├── __init__.py
 │   ├── config.py        # 配置管理
 │   ├── document_loader.py  # 文档加载与分块
 │   ├── embedding.py     # 文本向量化
+│   ├── llm.py           # LLM 接口（支持多种模式）
 │   ├── retrieval.py     # 检索器（混合检索/Query改写/Rerank）
 │   ├── rag_pipeline.py  # RAG 流水线（编排 + 生成）
+│   ├── auth.py          # 认证模块
+│   ├── user_manager.py  # 用户管理
+│   ├── conversation_manager.py  # 对话管理
 │   └── vector_db/       # 向量数据库模块
 │       ├── __init__.py
 │       ├── base.py      # 抽象接口定义
@@ -126,6 +142,10 @@ learn/
 │       ├── bm25_retriever.py   # BM25 关键词检索器
 │       └── hybrid_retriever.py # 混合检索器（向量 + BM25）
 └── tests/               # 测试与评估目录
+    ├── test_retrieval.py        # 检索测试
+    ├── test_bge_reranker.py     # BGE-Reranker 测试
+    ├── test_qwen3_reranker.py   # Qwen3-Reranker 测试
+    └── eval_to_file.py          # 评估脚本
 ```
 
 ## 核心模块详解
@@ -263,17 +283,72 @@ python main.py
 
 ## 功能配置
 
-在 `src/config.py` 中可以开关各项功能：
+### 通过 .env 文件配置（推荐）
+
+复制 `.env.example` 为 `.env` 并修改配置：
+
+```env
+# API Key（必填，使用 API 模式时）
+DASHSCOPE_API_KEY=sk-你的APIKey
+
+# LLM 配置
+LLM_TYPE=dashscope          # dashscope (API) / ollama (本地) / local (本地 Transformers)
+LLM_MODEL=qwen-plus
+
+# Embedding 配置
+EMBEDDING_TYPE=dashscope    # dashscope (API) / local (本地模型)
+EMBEDDING_MODEL=text-embedding-v2
+EMBEDDING_LOCAL_MODEL=all-MiniLM-L6-v2
+
+# 重排序配置
+RERANK_METHOD=bge           # none / vector / keyword / llm / bge
+RERANKER_TYPE=local         # api / local
+BGE_RERANKER_MODEL=BAAI/bge-reranker-v2-m3
+
+# 向量数据库配置
+VECTOR_DB_TYPE=auto         # faiss / memory / auto
+```
+
+### 配置项说明
+
+| 配置项 | 可选值 | 说明 |
+|--------|--------|------|
+| `LLM_TYPE` | `dashscope`, `ollama`, `local` | LLM 类型切换 |
+| `EMBEDDING_TYPE` | `dashscope`, `local` | Embedding 类型切换 |
+| `RERANK_METHOD` | `none`, `vector`, `keyword`, `llm`, `bge` | 重排序方法切换 |
+| `VECTOR_DB_TYPE` | `faiss`, `memory`, `auto` | 向量数据库切换 |
+
+### 完全本地运行配置
+
+```env
+LLM_TYPE=ollama
+LLM_MODEL=qwen2.5:7b
+EMBEDDING_TYPE=local
+EMBEDDING_LOCAL_MODEL=all-MiniLM-L6-v2
+RERANK_METHOD=bge
+RERANKER_TYPE=local
+VECTOR_DB_TYPE=faiss
+```
+
+### 在 src/config.py 中配置（高级选项）
 
 ```python
 # 检索配置
 top_k: int = 3                    # 检索返回的文档块数量
 use_bm25: bool = True             # 是否启用 BM25 混合检索
 bm25_weight: float = 0.5          # BM25 权重（0=纯向量，1=纯BM25）
-use_rerank: bool = True           # 是否启用 LLM 重排序
+use_rerank: bool = True           # 是否启用重排序
 use_query_rewrite: bool = True    # 是否启用 Query 改写
 show_citations: bool = True       # 是否显示引用来源
 show_retrieved_chunks: bool = True # 是否显示检索到的文档块
+
+# BM25 参数
+bm25_k1: float = 1.5              # BM25 的 k1 参数
+bm25_b: float = 0.75              # BM25 的 b 参数
+
+# RRF 融合参数
+rrf_k: int = 60                   # RRF 融合的 K 参数
+rrf_candidate_factor: int = 3     # RRF 候选数量因子
 ```
 
 ## RAG 原理
