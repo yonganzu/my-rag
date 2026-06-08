@@ -171,6 +171,15 @@ def chat(message, history, conversation_id):
                 for i, mem in enumerate(long_term_memories):
                     print(f"  [{i+1}] {mem[:50]}...")
 
+        # 先保存用户消息到 conversation_manager
+        if conversation_id and current_user["username"]:
+            conversation_manager.add_message(
+                current_user["username"],
+                conversation_id,
+                "user",
+                message
+            )
+
         # 调用 RAG 回答
         answer, contexts = rag.answer(
             message,
@@ -184,14 +193,8 @@ def chat(message, history, conversation_id):
             memory_text = "\n".join([f"- {mem}" for mem in long_term_memories])
             answer = f"📖 根据历史对话，我记得：\n{memory_text}\n\n{answer}"
 
-        # 保存用户消息到 conversation_manager
-        if conversation_id:
-            conversation_manager.add_message(
-                current_user["username"],
-                conversation_id,
-                "user",
-                message
-            )
+        # 保存助手回复到 conversation_manager
+        if conversation_id and current_user["username"]:
             conversation_manager.add_message(
                 current_user["username"],
                 conversation_id,
@@ -266,21 +269,25 @@ def load_conversation(conversation_id):
 
     # Gradio Chatbot 格式: [(user_msg, assistant_msg), ...]
     history = []
-    current_pair = [None, None]
+    user_msg = None
     
     for msg in messages:
         if msg["role"] == "user":
-            if current_pair[0] is not None and current_pair[1] is not None:
-                history.append(tuple(current_pair))
-            current_pair = [msg["content"], None]
+            # 如果之前有未配对的用户消息，先保存空回复
+            if user_msg is not None:
+                history.append((user_msg, ""))
+            user_msg = msg["content"]
         elif msg["role"] == "assistant":
-            current_pair[1] = msg["content"]
-            if current_pair[0] is not None:
-                history.append(tuple(current_pair))
-                current_pair = [None, None]
+            if user_msg is not None:
+                history.append((user_msg, msg["content"]))
+                user_msg = None
+            else:
+                # 如果没有对应的用户消息，单独添加助手消息
+                history.append(("", msg["content"]))
     
-    if current_pair[0] is not None and current_pair[1] is not None:
-        history.append(tuple(current_pair))
+    # 如果最后还有未配对的用户消息
+    if user_msg is not None:
+        history.append((user_msg, ""))
 
     return history, conversation_id
 
@@ -319,7 +326,7 @@ def do_login(username, password):
     global current_user
 
     if not username or not password:
-        return "❌ 请输入用户名和密码", gr.update(), gr.update(), "", ""
+        return "❌ 请输入用户名和密码", gr.update(), gr.update(), "", "", []
 
     success, session_id, error = auth_manager.login(username, password)
 
@@ -337,10 +344,11 @@ def do_login(username, password):
             gr.update(visible=True),  # 显示主界面
             gr.update(visible=False),  # 隐藏登录框
             get_document_list(),
-            get_kb_stats()
+            get_kb_stats(),
+            get_conversation_list()  # 返回会话列表
         )
     else:
-        return f"❌ {error}", gr.update(), gr.update(), "", ""
+        return f"❌ {error}", gr.update(), gr.update(), "", "", []
 
 
 def do_register(username, password, confirm_password):
@@ -598,7 +606,7 @@ with gr.Blocks(title="RAG 知识库问答", css=CSS) as demo:
     login_btn.click(
         handle_login,
         [username_input, password_input],
-        [login_msg, main_interface, login_section, doc_list, kb_stats]
+        [login_msg, main_interface, login_section, doc_list, kb_stats, conversation_list]
     )
 
     register_btn.click(
@@ -631,6 +639,10 @@ with gr.Blocks(title="RAG 知识库问答", css=CSS) as demo:
         start_new_conversation,
         None,
         [chatbot, current_conv_id, upload_msg]
+    ).then(
+        get_conversation_list,
+        None,
+        conversation_list
     )
 
     # 加载对话 - 需要从选择值中提取 conversation_id
