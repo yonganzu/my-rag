@@ -19,6 +19,8 @@ class VectorDB(ABC):
     向量数据库抽象基类
     
     所有向量数据库实现都应继承此类并实现抽象方法。
+    
+    注意：混合检索已移至 HybridRetriever，本接口只负责纯向量检索。
     """
 
     @abstractmethod
@@ -44,28 +46,6 @@ class VectorDB(ABC):
         
         返回：
           [(chunk_text, similarity_score, source), ...]，按相似度从高到低排序
-        """
-        pass
-
-    @abstractmethod
-    def hybrid_search(
-        self,
-        query_text: str,
-        query_vector: np.ndarray,
-        top_k: int = 3,
-        bm25_weight: float = 0.5,
-    ) -> List[Tuple[str, float, str]]:
-        """
-        混合检索：向量语义 + BM25 关键词，用 RRF 融合
-        
-        参数：
-          query_text: 查询文本（用于 BM25）
-          query_vector: 查询向量（用于向量检索）
-          top_k: 返回前 k 个结果
-          bm25_weight: BM25 权重 (0~1)
-        
-        返回：
-          [(chunk_text, rrf_score, source), ...]，按 RRF 分数从高到低排序
         """
         pass
 

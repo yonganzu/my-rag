@@ -4,6 +4,14 @@
 
 ## 更新日志
 
+### v0.7.0 (2026-06-08)
+- **BM25 检索独立**：将 BM25 从向量数据库中拆分出来，创建独立的 `BM25Retriever` 类
+- **混合检索重构**：新增 `HybridRetriever` 类，专门负责向量 + BM25 的 RRF 融合
+- **架构优化**：VectorDB 接口只负责纯向量检索，BM25 作为独立组件
+- **代码复用**：BM25 实现只写一次，所有后端共享
+- **易于测试**：可以单独测试 BM25 和向量检索的效果
+- **移除旧文件**：删除了 `src/vector_store.py`，统一使用新的 `src/vector_db/` 模块
+
 ### v0.6.0 (2026-06-08)
 - **向量数据库抽象层**：新增 `src/vector_db/` 目录，实现多后端支持
 - **FAISS 集成**：高性能向量检索，支持百万级向量数据
@@ -88,14 +96,21 @@ learn/
 │   ├── documents/       # 文档存放目录
 │   │   └── sample_document.txt
 │   └── vector_db/       # 向量库持久化目录（运行时生成）
-└── src/
-    ├── __init__.py
-    ├── config.py        # 配置管理
-    ├── document_loader.py  # 文档加载与分块
-    ├── embedding.py     # 文本向量化
-    ├── vector_store.py  # 向量存储 + BM25 索引
-    ├── retrieval.py     # 检索器（混合检索/Query改写/Rerank）
-    └── rag_pipeline.py  # RAG 流水线（编排 + 生成）
+├── src/
+│   ├── __init__.py
+│   ├── config.py        # 配置管理
+│   ├── document_loader.py  # 文档加载与分块
+│   ├── embedding.py     # 文本向量化
+│   ├── retrieval.py     # 检索器（混合检索/Query改写/Rerank）
+│   ├── rag_pipeline.py  # RAG 流水线（编排 + 生成）
+│   └── vector_db/       # 向量数据库模块
+│       ├── __init__.py
+│       ├── base.py      # 抽象接口定义
+│       ├── faiss_db.py  # FAISS 实现（高性能）
+│       ├── memory_db.py # 内存实现（降级方案）
+│       ├── bm25_retriever.py   # BM25 关键词检索器
+│       └── hybrid_retriever.py # 混合检索器（向量 + BM25）
+└── tests/               # 测试与评估目录
 ```
 
 ## 核心模块详解

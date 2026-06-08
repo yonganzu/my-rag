@@ -112,7 +112,7 @@ class RAGPipeline:
 
         vectors = embed_texts(texts=chunks, model=config.embedding_model)
 
-        self.vector_db.add(chunks, vectors, chunk_sources)
+        self.retriever.build_index(chunks, vectors, chunk_sources)
         self._ready = True
         self._doc_metadata = doc_metadata
         print(f"知识库构建完成，共 {len(self.vector_db)} 个文档块")
@@ -182,7 +182,7 @@ class RAGPipeline:
         print(f"[增量更新] 正在对 {len(chunks)} 个新文档块生成向量嵌入...")
 
         vectors = embed_texts(texts=chunks, model=config.embedding_model)
-        self.vector_db.add(chunks, vectors, chunk_sources)
+        self.retriever.add_documents(chunks, vectors, chunk_sources)
 
         if doc_metadata is not None and self._doc_metadata is not None:
             self._doc_metadata.update(doc_metadata)

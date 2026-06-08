@@ -1,23 +1,28 @@
 """
 向量数据库模块
 
-提供多种向量数据库后端支持：
-- FAISS（推荐，高性能）
-- Memory（降级方案，纯 Python）
+提供多种向量数据库实现和混合检索能力。
 
-使用方式：
-    from src.vector_db import VectorDBFactory
-    
-    # 创建向量数据库（自动选择后端）
-    db = VectorDBFactory.create()
-    
-    # 强制使用内存后端
-    db = VectorDBFactory.create("memory")
+主要组件：
+  - VectorDB: 抽象基类，定义向量数据库接口
+  - FAISSVectorDB: FAISS 实现（高性能）
+  - MemoryVectorDB: 内存实现（降级方案）
+  - BM25Retriever: 独立的 BM25 关键词检索器
+  - HybridRetriever: 混合检索器（向量 + BM25）
+  - VectorDBFactory: 工厂类，创建不同后端的向量数据库
 """
 
 from .base import VectorDB, VectorDBFactory
+from .faiss_db import FAISSVectorDB
+from .memory_db import MemoryVectorDB
+from .bm25_retriever import BM25Retriever
+from .hybrid_retriever import HybridRetriever
 
-# 不直接导入 FAISSVectorDB，避免启动时就需要 FAISS
-# FAISS 将在工厂类中动态导入
-
-__all__ = ["VectorDB", "VectorDBFactory"]
+__all__ = [
+    "VectorDB",
+    "VectorDBFactory",
+    "FAISSVectorDB",
+    "MemoryVectorDB",
+    "BM25Retriever",
+    "HybridRetriever",
+]

@@ -16,13 +16,13 @@
   - 便于单独测试和调优
 """
 
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 from dashscope import Generation
 
 from src.config import config
 from src.embedding import embed_text
-from src.vector_db import VectorDB
+from src.vector_db import VectorDB, HybridRetriever, BM25Retriever
 
 
 def build_rerank_prompt(question: str, contexts: List[str]) -> str:
@@ -81,6 +81,24 @@ class Retriever:
 
     def __init__(self, vector_db: VectorDB):
         self.vector_db = vector_db
+        self.hybrid_retriever: Optional[HybridRetriever] = None
+        
+        # 如果启用 BM25，创建混合检索器
+        if config.use_bm25:
+            self.bm25_retriever = BM25Retriever()
+            self.hybrid_retriever = HybridRetriever(vector_db, self.bm25_retriever)
+
+    def add_documents(self, chunks: List[str], vectors, sources: Optional[List[str]] = None) -> None:
+        """添加文档到检索器（同时更新向量数据库和 BM25 索引）"""
+        self.vector_db.add(chunks, vectors, sources)
+        if self.hybrid_retriever:
+            self.bm25_retriever.add_documents(chunks, sources)
+
+    def build_index(self, chunks: List[str], vectors, sources: Optional[List[str]] = None) -> None:
+        """构建索引（覆盖式）"""
+        self.vector_db.add(chunks, vectors, sources)
+        if self.hybrid_retriever:
+            self.bm25_retriever.build(chunks, sources)
 
     def retrieve(
         self,
@@ -108,9 +126,9 @@ class Retriever:
 
         fetch_k = config.top_k * config.rerank_factor if use_rerank else config.top_k
 
-        if config.use_bm25:
+        if config.use_bm25 and self.hybrid_retriever:
             print(f"[混合检索] 向量语义 + BM25 关键词 (BM25 权重: {config.bm25_weight})")
-            results = self.vector_db.hybrid_search(
+            results = self.hybrid_retriever.hybrid_search(
                 query_text=question,
                 query_vector=query_vector,
                 top_k=fetch_k,
