@@ -30,10 +30,9 @@ RAG（Retrieval-Augmented Generation）流水线
 from typing import List, Optional, Tuple
 from pathlib import Path
 
-from dashscope import Generation
-
 from src.config import config
 from src.embedding import embed_texts
+from src.llm import llm_call
 from src.vector_db import VectorDBFactory
 from src.retrieval import Retriever
 
@@ -204,17 +203,12 @@ class RAGPipeline:
     ) -> str:
         prompt = build_rag_prompt(question, contexts, sources, show_citations)
 
-        resp = Generation.call(
+        return llm_call(
             model=config.llm_model,
             messages=[{"role": "user", "content": prompt}],
             api_key=config.dashscope_api_key,
-            result_format="message",
+            base_url=config.llm_base_url,
         )
-
-        if resp.status_code != 200:
-            raise RuntimeError(f"LLM API 调用失败: [{resp.status_code}] {resp.message}")
-
-        return resp.output.choices[0].message.content
 
     def answer(
         self,

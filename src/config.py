@@ -27,7 +27,7 @@ class Config:
     # ── DashScope ──────────────────────────────────────────────
     # os.environ["KEY"] 会在缺失时抛 KeyError（及早暴露配置错误）
     # os.environ.get("KEY", "default") 有默认值，适合非敏感选项
-    dashscope_api_key: str = os.environ["DASHSCOPE_API_KEY"]
+    dashscope_api_key: str = os.environ.get("DASHSCOPE_API_KEY", "")
 
     # ── LLM 配置 ───────────────────────────────────────────────
     llm_model: str = os.environ.get("LLM_MODEL", "qwen-plus")
@@ -35,9 +35,12 @@ class Config:
         "LLM_BASE_URL",
         "https://dashscope.aliyuncs.com/compatible-mode/v1",
     )
+    llm_type: str = os.environ.get("LLM_TYPE", "dashscope")  # dashscope, ollama, local
 
     # ── Embedding 配置 ─────────────────────────────────────────
     embedding_model: str = os.environ.get("EMBEDDING_MODEL", "text-embedding-v2")
+    embedding_type: str = os.environ.get("EMBEDDING_TYPE", "dashscope")  # dashscope, local
+    embedding_local_model: str = os.environ.get("EMBEDDING_LOCAL_MODEL", "all-MiniLM-L6-v2")
 
     # ── 文本分块配置 ────────────────────────────────────────────
     # chunk_size: 每块字符数（不是 token 数，但足够了演示）

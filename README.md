@@ -4,6 +4,13 @@
 
 ## 更新日志
 
+### v0.8.0 (2026-06-08)
+- **本地 LLM 支持**：新增 `src/llm.py` 模块，支持 Ollama 和本地 Transformers 模型
+- **本地 Embedding 支持**：`embedding.py` 支持 Sentence-BERT 系列本地模型
+- **配置扩展**：新增 `LLM_TYPE` 和 `EMBEDDING_TYPE` 配置项，支持 `dashscope`、`ollama`、`local` 三种模式
+- **懒加载机制**：本地模型采用懒加载，启动更快
+- **新增依赖**：`sentence-transformers`、`ollama`
+
 ### v0.7.0 (2026-06-08)
 - **BM25 检索独立**：将 BM25 从向量数据库中拆分出来，创建独立的 `BM25Retriever` 类
 - **混合检索重构**：新增 `HybridRetriever` 类，专门负责向量 + BM25 的 RRF 融合

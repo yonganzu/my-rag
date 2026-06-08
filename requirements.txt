@@ -8,3 +8,5 @@ openpyxl>=3.1.2             # Excel支持
 python-pptx>=0.6.23         # PowerPoint支持
 beautifulsoup4>=4.12.2      # HTML解析
 faiss-cpu>=1.8.0            # FAISS向量数据库
+sentence-transformers>=2.7.0  # 本地Embedding模型
+ollama>=0.1.0               # Ollama本地LLM支持（可选）

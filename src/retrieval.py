@@ -18,10 +18,9 @@
 
 from typing import List, Tuple, Optional
 
-from dashscope import Generation
-
 from src.config import config
 from src.embedding import embed_text
+from src.llm import llm_call
 from src.vector_db import VectorDB, HybridRetriever, BM25Retriever
 
 
@@ -159,19 +158,18 @@ class Retriever:
 
         prompt = build_query_rewrite_prompt(question)
 
-        resp = Generation.call(
-            model=config.llm_model,
-            messages=[{"role": "user", "content": prompt}],
-            api_key=config.dashscope_api_key,
-            result_format="message",
-        )
-
-        if resp.status_code != 200:
-            print(f"Query 改写 API 调用失败，使用原始问题: {resp.message}")
+        try:
+            result = llm_call(
+                model=config.llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=config.dashscope_api_key,
+                base_url=config.llm_base_url,
+            )
+        except Exception as e:
+            print(f"Query 改写 API 调用失败，使用原始问题: {e}")
             return question
 
         try:
-            result = resp.output.choices[0].message.content.strip()
             lines = result.split("\n")
             rewritten_question = question
             for line in lines:
@@ -195,19 +193,18 @@ class Retriever:
 
         prompt = build_rerank_prompt(question, contexts)
 
-        resp = Generation.call(
-            model=config.llm_model,
-            messages=[{"role": "user", "content": prompt}],
-            api_key=config.dashscope_api_key,
-            result_format="message",
-        )
-
-        if resp.status_code != 200:
-            print(f"Rerank API 调用失败，使用原始排序: {resp.message}")
+        try:
+            result = llm_call(
+                model=config.llm_model,
+                messages=[{"role": "user", "content": prompt}],
+                api_key=config.dashscope_api_key,
+                base_url=config.llm_base_url,
+            )
+        except Exception as e:
+            print(f"Rerank API 调用失败，使用原始排序: {e}")
             return contexts, sources or []
 
         try:
-            result = resp.output.choices[0].message.content.strip()
             ranks = [int(x.strip()) - 1 for x in result.split(",")]
 
             if len(ranks) != len(contexts) or set(ranks) != set(range(len(contexts))):
