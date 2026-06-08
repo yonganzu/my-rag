@@ -61,6 +61,10 @@ data/vector_db/
 data/documents/*
 !data/documents/sample_document.txt
 
+# User data (sensitive)
+data/users.json
+data/conversations/
+
 # Gradio temporary files
 .gradio/
 
