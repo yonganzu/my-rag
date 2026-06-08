@@ -650,4 +650,4 @@ if __name__ == "__main__":
     print("启动 RAG 知识库问答系统...")
     print("默认管理员账号: admin / admin")
     demo.queue()
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    demo.launch(server_name="127.0.0.1", server_port=7860)
