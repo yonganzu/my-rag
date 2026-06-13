@@ -64,7 +64,13 @@ class BM25Retriever:
         self.tokens_list = []
         self.doc_lengths = []
         self._term_doc_freq = {}
-        self.sources = sources or []
+        # 确保 sources 长度与 documents 匹配，不足部分用默认值填充
+        if sources and len(sources) >= len(documents):
+            self.sources = sources[:len(documents)]
+        else:
+            self.sources = list(sources) if sources else []
+            while len(self.sources) < len(documents):
+                self.sources.append("未知来源")
 
         for doc in documents:
             tokens = _tokenize(doc)
@@ -86,26 +92,47 @@ class BM25Retriever:
             )
 
     def add_documents(self, documents: List[str], sources: Optional[List[str]] = None) -> None:
-        """增量添加文档"""
-        for doc in documents:
+        """增量添加文档（自动去重，避免重复添加导致词频错误）"""
+        sources = sources or []
+        added_count = 0
+
+        for i, doc in enumerate(documents):
+            # 去重检查：如果文档内容已存在则跳过
+            if doc in self.documents:
+                continue
+
             tokens = _tokenize(doc)
             self.tokens_list.append(tokens)
             self.doc_lengths.append(len(tokens))
+            self.documents.append(doc)
+
+            # 同步添加来源信息
+            if i < len(sources):
+                self.sources.append(sources[i])
+            else:
+                self.sources.append("未知来源")
+
+            # 更新词项文档频率
             unique_terms = set(tokens)
             for term in unique_terms:
                 self._term_doc_freq[term] = self._term_doc_freq.get(term, 0) + 1
-        
-        self.documents.extend(documents)
-        if sources:
-            self.sources.extend(sources)
+
+            added_count += 1
+
+        if added_count == 0:
+            print("[BM25] 没有新文档需要添加（全部已存在）")
+            return
 
         self._doc_count = len(self.documents)
         self.avgdl = sum(self.doc_lengths) / self._doc_count
 
+        # 重新计算所有 term 的 IDF
         for term, df in self._term_doc_freq.items():
             self.idf[term] = math.log(
                 (self._doc_count - df + 0.5) / (df + 0.5) + 1.0
             )
+
+        print(f"[BM25] 已添加 {added_count} 个新文档，共 {self._doc_count} 个文档")
 
     def search(self, query: str, top_k: int = 3) -> List[Tuple[int, float, str, str]]:
         """

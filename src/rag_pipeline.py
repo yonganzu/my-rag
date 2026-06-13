@@ -30,11 +30,14 @@ RAG（Retrieval-Augmented Generation）流水线
 from typing import List, Optional, Tuple
 from pathlib import Path
 
+from typing import Optional as _Optional
+
 from src.config import config
 from src.embedding import embed_texts
 from src.llm import llm_call
 from src.vector_db import VectorDBFactory
 from src.retrieval import Retriever
+from src.query_rewriter import rewrite_query
 
 
 def build_rag_prompt(
@@ -42,8 +45,14 @@ def build_rag_prompt(
     contexts: List[str],
     sources: List[str] = None,
     show_citations: bool = False,
+    conversation_history: str = "",
 ) -> str:
     """构建 RAG 提示词"""
+    # 对话历史
+    history_section = ""
+    if conversation_history:
+        history_section = f"## 对话历史：\n{conversation_history}\n\n"
+
     if show_citations and sources:
         context_parts = []
         for ctx, src in zip(contexts, sources):
@@ -52,7 +61,7 @@ def build_rag_prompt(
 
         prompt = f"""你是一个基于知识库的问答助手。请根据以下上下文内容回答用户的问题。
 
-上下文：
+{history_section}上下文：
 {context_text}
 
 请基于以上上下文回答问题。如果上下文中没有足够信息，请如实说"根据提供的资料无法回答这个问题"，不要编造。
@@ -66,7 +75,7 @@ def build_rag_prompt(
 
         prompt = f"""你是一个基于知识库的问答助手。请根据以下上下文内容回答用户的问题。
 
-上下文：
+{history_section}上下文：
 {context_text}
 
 请基于以上上下文回答问题。如果上下文中没有足够信息，请如实说"根据提供的资料无法回答这个问题"，不要编造。
@@ -80,8 +89,12 @@ class RAGPipeline:
     """
     RAG 流水线：负责知识库管理和问答编排
 
+    后端自闭环：注入 ConversationManager 后，answer() 只需传 user_id + conversation_id，
+    上下文获取、query改写、检索、生成全部在后端完成，前端只负责展示。
+
     检索逻辑已拆分到 retrieval.Retriever，本类专注于：
       - 知识库的构建 / 加载 / 增量更新 / 变更检测
+      - 对话上下文获取与管理
       - Prompt 构建与 LLM 生成
       - 将检索 + 生成串联为 complete 的问答流程
     
@@ -90,12 +103,18 @@ class RAGPipeline:
       - memory: 内存实现（降级方案）
     """
 
-    def __init__(self, db_path: str = "data/vector_db", db_type: str = None):
+    def __init__(
+        self,
+        db_path: str = "data/vector_db",
+        db_type: str = None,
+        conversation_manager: _Optional[object] = None,
+    ):
         self.db_path = Path(db_path)
         self.vector_db = VectorDBFactory.create(db_type or config.vector_db_type)
         self.retriever = Retriever(self.vector_db)
         self._ready = False
-        self._doc_metadata = None
+        self._doc_metadata = {}
+        self._conversation_manager = conversation_manager  # 可选的对话管理器注入
 
     # ═════════════════════════════════════════════════════════════
     # 知识库管理
@@ -113,17 +132,18 @@ class RAGPipeline:
 
         self.retriever.build_index(chunks, vectors, chunk_sources)
         self._ready = True
-        self._doc_metadata = doc_metadata
+        self._doc_metadata = doc_metadata or {}
         print(f"知识库构建完成，共 {len(self.vector_db)} 个文档块")
 
-        self.vector_db.save(self.db_path, doc_metadata)
+        self.vector_db.save(self.db_path, self._doc_metadata)
         # 同时保存 BM25 索引
         self.retriever.save(str(self.db_path))
         print(f"知识库已保存到 {self.db_path}")
 
     def load_knowledge_base(self) -> bool:
         try:
-            self._doc_metadata = self.vector_db.load(self.db_path)
+            metadata = self.vector_db.load(self.db_path)
+            self._doc_metadata = metadata if metadata else {}
             # 同时加载 BM25 索引
             self.retriever.load(str(self.db_path))
             self._ready = True
@@ -145,7 +165,8 @@ class RAGPipeline:
                     "size": file.stat().st_size,
                 }
 
-        if self._doc_metadata is None:
+        # 如果没有旧的元数据或元数据为空，所有文件都视为新增
+        if self._doc_metadata is None or len(self._doc_metadata) == 0:
             return True, list(current_metadata.keys()), []
 
         old_files = set(self._doc_metadata.keys())
@@ -187,7 +208,8 @@ class RAGPipeline:
         vectors = embed_texts(texts=chunks, model=config.embedding_model)
         self.retriever.add_documents(chunks, vectors, chunk_sources)
 
-        if doc_metadata is not None and self._doc_metadata is not None:
+        # 合并元数据：确保 _doc_metadata 始终是字典，doc_metadata 可能为 None
+        if doc_metadata is not None:
             self._doc_metadata.update(doc_metadata)
 
         print(f"[增量更新] 已添加 {len(chunks)} 个文档块，知识库共 {len(self.vector_db)} 个文档块")
@@ -206,15 +228,64 @@ class RAGPipeline:
         contexts: List[str],
         sources: List[str] = None,
         show_citations: bool = False,
+        conversation_history: str = "",
     ) -> str:
-        prompt = build_rag_prompt(question, contexts, sources, show_citations)
+        prompt = build_rag_prompt(question, contexts, sources, show_citations, conversation_history)
 
+        messages = []
+        if conversation_history:
+            # 将对话历史作为已有的上下文传给 LLM
+            messages.append({
+                "role": "system",
+                "content": "你是基于知识库的问答助手。请根据对话历史和参考上下文回答用户问题。注意结合历史上下文理解用户当前的提问意图。"
+            })
         return llm_call(
             model=config.llm_model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages + [{"role": "user", "content": prompt}],
             api_key=config.dashscope_api_key,
             base_url=config.llm_base_url,
         )
+
+    def _get_conversation_context(self, user_id: str, conversation_id: str) -> str:
+        """
+        从 ConversationManager 获取格式化的对话历史文本（后端自闭环）
+
+        Args:
+            user_id: 用户ID
+            conversation_id: 对话ID
+
+        Returns:
+            str: 格式化的对话历史，如 "用户：rag\n助手：RAG是一种..."
+        """
+        if not self._conversation_manager or not user_id or not conversation_id:
+            return ""
+
+        try:
+            raw = self._conversation_manager.get_conversation_messages(
+                user_id, conversation_id, limit=10
+            )
+        except Exception as e:
+            print(f"[上下文管理] 获取对话历史失败: {e}")
+            return ""
+
+        if not raw:
+            return ""
+
+        lines = []
+        for m in raw[:-1] if len(raw) > 1 else []:
+            role_name = "用户" if m["role"] == "user" else "助手"
+            lines.append(f"{role_name}：{m['content']}")
+        return "\n".join(lines) if lines else ""
+
+    # ── setter ─────────────────────────────────────────────
+
+    def set_conversation_manager(self, mgr: object) -> None:
+        """注入对话管理器（晚绑定，避免循环导入）"""
+        self._conversation_manager = mgr
+
+    # ═════════════════════════════════════════════════════════════
+    # 问答
+    # ═════════════════════════════════════════════════════════════
 
     def answer(
         self,
@@ -222,11 +293,33 @@ class RAGPipeline:
         use_rerank: bool = False,
         use_query_rewrite: bool = False,
         show_citations: bool = False,
+        user_role: str = "user",
+        user_id: str = "",
+        conversation_id: str = "",
+        conversation_history: str = "",
     ) -> tuple[str, list[str]]:
+        """
+        后端自闭环问答接口
+
+        前端只需传 question + user_id + conversation_id，后端自动获取上下文、
+        改写query、检索、生成。也兼容直接传 conversation_history 字符串的旧调用方式。
+        """
+        # 优先使用后端自闭环获取上下文
+        if not conversation_history and user_id and conversation_id:
+            conversation_history = self._get_conversation_context(user_id, conversation_id)
+
+        # 如果有对话历史，先改写query解决代词指代问题
+        if conversation_history:
+            resolved_question = rewrite_query(question, conversation_history)
+            print(f"[上下文管理] 已获取对话上下文（{len(conversation_history)}字符）")
+        else:
+            resolved_question = question
+
         contexts, sources = self.retriever.retrieve(
-            question,
+            resolved_question,
             use_rerank=use_rerank,
             use_query_rewrite=use_query_rewrite,
+            user_role=user_role,
         )
-        answer = self.generate(question, contexts, sources, show_citations)
+        answer = self.generate(resolved_question, contexts, sources, show_citations, conversation_history)
         return answer, contexts

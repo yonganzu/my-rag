@@ -60,13 +60,15 @@ class MemoryVectorDB(VectorDB):
         query_vector = query_vector.reshape(1, -1)
         scores = cosine_similarity(query_vector, self.vectors)
 
-        top_indices = scores.squeeze().argsort()[::-1][:top_k]
+        # scores 形状: (1, n)。使用 flatten 防止 squeeze 在 n=1 时产生 0 维数组
+        scores_flat = scores.flatten()
+        top_indices = scores_flat.argsort()[::-1][:top_k]
 
         results = []
         for idx in top_indices:
             idx = int(idx)
             source = self.sources[idx] if idx < len(self.sources) else "未知来源"
-            results.append((self.chunks[idx], float(scores.squeeze()[idx]), source))
+            results.append((self.chunks[idx], float(scores_flat[idx]), source))
 
         return results
 

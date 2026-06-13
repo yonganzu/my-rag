@@ -68,6 +68,12 @@ class Config:
     rerank_method: str = os.environ.get("RERANK_METHOD", "bge")
     reranker_type: str = os.environ.get("RERANKER_TYPE", "local")  # Reranker 类型: "api"(DashScope API), "local"(本地模型)
     bge_reranker_model: str = os.environ.get("BGE_RERANKER_MODEL", "BAAI/bge-reranker-v2-m3")  # BGE-Reranker 模型名
+
+    # ── 查询改写策略 ───────────────────────────────────
+    # QUERY_REWRITE_STRATEGY 可选值:
+    #   - keyword: 基于关键词规则快速改写（无 LLM 调用，速度快）
+    #   - llm: 使用 LLM 语义改写（更准确，需要 API 调用）
+    query_rewrite_strategy: str = os.environ.get("QUERY_REWRITE_STRATEGY", "keyword")
     
     use_query_rewrite: bool = True  # 是否使用 Query 改写
     show_citations: bool = True  # 是否在 LLM 回答文本中标注信息来源（如【参考：xxx.pdf】】）

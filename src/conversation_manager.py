@@ -621,3 +621,266 @@ class ConversationManager:
                 return True
 
         return False
+
+    # ==================== 上下文管理功能 ====================
+
+    def trim_context(
+        self,
+        user_id: str,
+        conversation_id: str,
+        max_messages: int = 20
+    ) -> bool:
+        """
+        修剪上下文（保留最近的消息）
+
+        Args:
+            user_id: 用户ID
+            conversation_id: 对话ID
+            max_messages: 最大保留消息数
+
+        Returns:
+            bool: 修剪是否成功
+        """
+        conversations = self._load_conversations(user_id)
+
+        for i, conv in enumerate(conversations):
+            if conv["id"] == conversation_id:
+                messages = conv.get("messages", [])
+                if len(messages) > max_messages:
+                    # 保留最近的消息
+                    conversations[i]["messages"] = messages[-max_messages:]
+                    conversations[i]["updated_at"] = datetime.now().isoformat()
+                    self._save_conversations(user_id, conversations)
+                    print(f"[上下文管理] 已修剪上下文，保留最近 {max_messages} 条消息")
+                return True
+
+        return False
+
+    def compress_context(self, user_id: str, conversation_id: str) -> bool:
+        """
+        压缩上下文（将早期消息合并为摘要）
+
+        Args:
+            user_id: 用户ID
+            conversation_id: 对话ID
+
+        Returns:
+            bool: 压缩是否成功
+        """
+        if not EMBEDDING_AVAILABLE:
+            return False
+
+        conversations = self._load_conversations(user_id)
+
+        for i, conv in enumerate(conversations):
+            if conv["id"] == conversation_id:
+                messages = conv.get("messages", [])
+                if len(messages) < 10:
+                    return False  # 消息太少，不需要压缩
+
+                # 将前半部分消息压缩为摘要
+                split_index = len(messages) // 2
+                early_messages = messages[:split_index]
+                recent_messages = messages[split_index:]
+
+                try:
+                    # 构建压缩提示词
+                    early_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in early_messages])
+
+                    prompt = f"""请将以下对话内容压缩为一条简洁的系统消息，保留关键信息：
+
+对话内容：
+{early_text}
+
+压缩要求：
+1. 用第三人称描述对话内容
+2. 包含关键事实和结论
+3. 不超过100字
+4. 使用中文
+
+请直接输出压缩后的内容，不要输出其他内容。
+"""
+
+                    result = llm_call(
+                        model=config.llm_model,
+                        messages=[{"role": "user", "content": prompt}],
+                        api_key=config.dashscope_api_key,
+                        base_url=config.llm_base_url,
+                    )
+
+                    # 创建压缩后的系统消息
+                    compressed_message = Message(
+                        role="system",
+                        content=f"[对话摘要] {result.strip()}",
+                        timestamp=datetime.now().isoformat(),
+                        metadata={"type": "compressed_summary"}
+                    )
+
+                    # 重组消息：系统摘要 + 最近消息
+                    conversations[i]["messages"] = [asdict(compressed_message)] + recent_messages
+                    conversations[i]["updated_at"] = datetime.now().isoformat()
+                    self._save_conversations(user_id, conversations)
+                    print(f"[上下文管理] 已压缩上下文，原始 {len(messages)} 条 → 压缩后 {len(conversations[i]['messages'])} 条")
+                    return True
+
+                except Exception as e:
+                    print(f"[上下文管理] 压缩失败: {e}")
+                    return False
+
+        return False
+
+    def clear_context(self, user_id: str, conversation_id: str) -> bool:
+        """
+        清空对话上下文（保留对话，但清空所有消息）
+
+        Args:
+            user_id: 用户ID
+            conversation_id: 对话ID
+
+        Returns:
+            bool: 清空是否成功
+        """
+        conversations = self._load_conversations(user_id)
+
+        for i, conv in enumerate(conversations):
+            if conv["id"] == conversation_id:
+                conversations[i]["messages"] = []
+                conversations[i]["updated_at"] = datetime.now().isoformat()
+                self._save_conversations(user_id, conversations)
+                print(f"[上下文管理] 已清空对话 {conversation_id} 的上下文")
+                return True
+
+        return False
+
+    def get_context_stats(self, user_id: str, conversation_id: str) -> Dict:
+        """
+        获取上下文统计信息
+
+        Args:
+            user_id: 用户ID
+            conversation_id: 对话ID
+
+        Returns:
+            Dict: 统计信息
+        """
+        conversation = self.get_conversation(user_id, conversation_id)
+        if not conversation:
+            return {}
+
+        messages = conversation.get("messages", [])
+        user_messages = [m for m in messages if m["role"] == "user"]
+        assistant_messages = [m for m in messages if m["role"] == "assistant"]
+        system_messages = [m for m in messages if m["role"] == "system"]
+
+        total_chars = sum(len(m["content"]) for m in messages)
+        avg_msg_length = total_chars // len(messages) if messages else 0
+
+        return {
+            "conversation_id": conversation_id,
+            "total_messages": len(messages),
+            "user_messages": len(user_messages),
+            "assistant_messages": len(assistant_messages),
+            "system_messages": len(system_messages),
+            "total_characters": total_chars,
+            "avg_message_length": avg_msg_length,
+            "created_at": conversation.get("created_at"),
+            "updated_at": conversation.get("updated_at"),
+            "title": conversation.get("title")
+        }
+
+    def get_context_for_llm(
+        self,
+        user_id: str,
+        conversation_id: str,
+        max_tokens: int = 3000,
+        token_estimate: int = 4  # 每个中文字符约4个token
+    ) -> List[Dict]:
+        """
+        获取格式化的LLM输入上下文
+
+        Args:
+            user_id: 用户ID
+            conversation_id: 对话ID
+            max_tokens: 最大token数
+            token_estimate: 每个字符的token估算
+
+        Returns:
+            List[Dict]: 格式化的上下文消息列表
+        """
+        messages = self.get_conversation_messages(user_id, conversation_id)
+        if not messages:
+            return []
+
+        # 从后往前累加，直到达到token限制
+        context = []
+        total_tokens = 0
+
+        for msg in reversed(messages):
+            msg_tokens = len(msg["content"]) * token_estimate
+            if total_tokens + msg_tokens <= max_tokens:
+                context.insert(0, {
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+                total_tokens += msg_tokens
+            else:
+                # 尝试压缩早期消息
+                if not context:
+                    # 如果第一条消息就超了，只取部分
+                    max_chars = max_tokens // token_estimate
+                    context.insert(0, {
+                        "role": msg["role"],
+                        "content": msg["content"][:max_chars] + "..."
+                    })
+                break
+
+        return context
+
+    def merge_conversations(
+        self,
+        user_id: str,
+        source_conv_id: str,
+        target_conv_id: str
+    ) -> bool:
+        """
+        合并两个对话（将源对话的消息合并到目标对话）
+
+        Args:
+            user_id: 用户ID
+            source_conv_id: 源对话ID（将被删除）
+            target_conv_id: 目标对话ID
+
+        Returns:
+            bool: 合并是否成功
+        """
+        conversations = self._load_conversations(user_id)
+
+        source_conv = None
+        target_conv = None
+        source_index = None
+        target_index = None
+
+        for i, conv in enumerate(conversations):
+            if conv["id"] == source_conv_id:
+                source_conv = conv
+                source_index = i
+            elif conv["id"] == target_conv_id:
+                target_conv = conv
+                target_index = i
+
+        if not source_conv or not target_conv:
+            return False
+
+        if source_conv_id == target_conv_id:
+            return False
+
+        # 将源对话的消息追加到目标对话
+        conversations[target_index]["messages"].extend(source_conv["messages"])
+        conversations[target_index]["updated_at"] = datetime.now().isoformat()
+
+        # 删除源对话
+        del conversations[source_index]
+
+        self._save_conversations(user_id, conversations)
+        print(f"[上下文管理] 已将对话 {source_conv_id} 合并到 {target_conv_id}")
+        return True

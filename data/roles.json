@@ -1,0 +1,57 @@
+{
+  "admin": {
+    "description": "管理员，拥有所有权限，可访问所有级别文档",
+    "permissions": [
+      "doc:write",
+      "user:update",
+      "system:logs",
+      "conv:create",
+      "system:config",
+      "user:create",
+      "conv:manage",
+      "conv:delete",
+      "user:delete",
+      "doc:read",
+      "user:manage",
+      "conv:read",
+      "user:read",
+      "doc:manage",
+      "doc:delete"
+    ],
+    "inherits": [],
+    "max_doc_level": "secret"
+  },
+  "editor": {
+    "description": "编辑者，可以管理文档和对话，可访问机密文档",
+    "permissions": [
+      "doc:write",
+      "conv:create",
+      "conv:delete",
+      "conv:read",
+      "doc:read",
+      "doc:delete"
+    ],
+    "inherits": [],
+    "max_doc_level": "confidential"
+  },
+  "viewer": {
+    "description": "查看者，只能查看内容，可访问内部文档",
+    "permissions": [
+      "conv:read",
+      "doc:read"
+    ],
+    "inherits": [],
+    "max_doc_level": "internal"
+  },
+  "user": {
+    "description": "普通用户，可以问答和查看文档，可访问公开文档",
+    "permissions": [
+      "conv:read",
+      "conv:create",
+      "conv:delete",
+      "doc:read"
+    ],
+    "inherits": [],
+    "max_doc_level": "internal"
+  }
+}
